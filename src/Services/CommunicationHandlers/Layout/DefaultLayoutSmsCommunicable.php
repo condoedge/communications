@@ -5,6 +5,9 @@ namespace Condoedge\Communications\Services\CommunicationHandlers\Layout;
 use Illuminate\Mail\Mailable;
 use Illuminate\Notifications\Messages\VonageMessage;
 
+/**
+ * The wrapper for SMS sending of the communication
+ */
 class DefaultLayoutSmsCommunicable extends Mailable
 {
     public $communication;

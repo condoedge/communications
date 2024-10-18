@@ -12,6 +12,12 @@ class CommunicationTriggeredListener implements ShouldQueue
 {
     use InteractsWithQueue;
 
+    /**
+     * Enhance the params of the event and notify the communicables
+     * 
+     * @param \Condoedge\Communications\EventsHandling\Contracts\CommunicableEvent $event
+     * @return void
+     */
     public function handle(CommunicableEvent $event)
     {
         $params = ContextEnhancer::setContext(array_merge($event->getParams(), [

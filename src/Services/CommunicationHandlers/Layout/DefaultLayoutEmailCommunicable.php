@@ -4,6 +4,9 @@ namespace Condoedge\Communications\Services\CommunicationHandlers\Layout;
 
 use Illuminate\Mail\Mailable;
 
+/**
+ * The wrapper for email sending of the communication
+ */
 class DefaultLayoutEmailCommunicable extends Mailable
 {
     public $communication;

@@ -2,6 +2,8 @@
 
 namespace Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\VariablesManager;
 
+use Illuminate\Database\Eloquent\Collection;
+
 class DefaultVarSection
 {
     protected string $title;
@@ -19,6 +21,10 @@ class DefaultVarSection
         $this->classes = $classes;
     }
 
+    /**
+     * Convert the section to a Dropdown element to be able to be used in the editor
+     * @return mixed
+     */
     public function getElementsParsed()
     {
         return _Dropdown($this->title)->submenu(collect($this->links)->map(function($link){
@@ -26,6 +32,15 @@ class DefaultVarSection
         }))->alignUpRight()->class('varsDropdown')->class($this->classes);
     }
 
+    /**
+     * Convert an array for VariablesManager structure to a DefaultVarSection
+     * 
+     * @see \Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\VariablesManager\VariablesManager
+     * 
+     * @param string $title
+     * @param array $section
+     * @return static
+     */
     public static function fromArray(string $title, array $section): self
     {
         return new self($title, links: collect(value: $section)->map(function($var){
@@ -37,16 +52,20 @@ class DefaultVarSection
         })->toArray());
     }
 
-    public static function validateVariable(array $section)
+    /**
+     * Validate if the variable has correct structure
+     * @param array $variable
+     * @throws \Exception
+     * @return void
+     */
+    public static function validateVariable(array $variable)
     {
-        collect($section)->each(callback: function($params){
-            if(count($params) != 4){
-                throw new \Exception('The section must have 4 parameters: id, link, classes, automaticHandling');
-            }
+        if(count($variable) != 4){
+            throw new \Exception('The section must have 4 parameters: id, link, classes, automaticHandling');
+        }
 
-            if(!is_string($params[0]) || !is_string($params[1]) || !is_string($params[2]) || !is_bool($params[3])){
-                throw new \Exception('The section parameters must be: string, string, string, bool');
-            }
-        });
+        if(!is_string($variable[0]) || !is_string($variable[1]) || !is_string($variable[2]) || !is_bool($variable[3])){
+            throw new \Exception('The section parameters must be: string, string, string, bool');
+        }
     }
 }

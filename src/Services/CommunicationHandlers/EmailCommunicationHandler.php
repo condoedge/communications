@@ -15,6 +15,8 @@ class EmailCommunicationHandler extends AbstractCommunicationHandler
         return EmailCommunicable::class;
     }
 
+    // NOTIFICATION
+
     /**
      * @param EmailCommunicable[] $communicables
      * @param mixed $params

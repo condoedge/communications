@@ -104,6 +104,8 @@ class CondoedgeCommunicationServiceProvider extends ServiceProvider
      */
     protected function loadListeners()
     {
+        $this->verifyCommunicationTriggers();
+        
         Event::listen(CommunicationTemplateGroup::getTriggers(), CommunicationTriggeredListener::class);
     }
 

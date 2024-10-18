@@ -9,6 +9,13 @@ use Condoedge\Communications\Services\CommunicationHandlers\Layout\DefaultLayout
 
 class SmsCommunicationHandler extends AbstractCommunicationHandler
 {
+    public function communicableInterface()
+    {
+        return SmsCommunicable::class;
+    }
+
+    // NOTIFICATION
+
     /**
      * @param SmsCommunicable[] $communicables
      * @param mixed $params
@@ -22,9 +29,4 @@ class SmsCommunicationHandler extends AbstractCommunicationHandler
             Notification::send($communicable->getPhone(), new $layout($this->communication, $params));
         });
     }   
-
-    public function communicableInterface()
-    {
-        return SmsCommunicable::class;
-    }
 }

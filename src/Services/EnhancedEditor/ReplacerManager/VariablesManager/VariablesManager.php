@@ -26,7 +26,7 @@ class VariablesManager
      * @param array<string, array{string, string, string, bool}> $varsEls An array of variables to set for the group. 
      * The structure should be ['section' => ['id', 'name', 'classes', automatic_handling (bool)]].
      * @param string $group The group to set the variables for. You will be able to get the variables by this group when you're using getVariables.
-     * @return void
+     * @return static
      *
      * @example
      * $varsEls = [
@@ -42,13 +42,15 @@ class VariablesManager
         $this->rawVariables[$group] = $varsEls;
 
         $this->variables[$group] = $this->automaticVarParsing($varsEls);
+
+        return $this;
     }
 
     /**
      * Set the section parser. Is used to convert the array of vars to a final element. The default one use dropdown and links.
      * @param DefaultVarSection $sectionParser The section parser to use. It should be an instance of DefaultVarSection.
      * @throws \Exception
-     * @return void
+     * @return static
      */
     public function setSectionParser($sectionParser)
     {
@@ -57,6 +59,8 @@ class VariablesManager
         }
 
         $this->sectionParser = $sectionParser;
+
+        return $this;
     }
 
     // GETTERS

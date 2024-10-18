@@ -15,6 +15,11 @@ class DefaultVarLink
         $this->classes = $classes;
     }
 
+    /**
+     * Return a var converted to a link element
+     * 
+     * @return \Kompo\Link
+     */
     public function getElementParsed()
     {
         return $this->link($this->name, $this->id, $this->classes);

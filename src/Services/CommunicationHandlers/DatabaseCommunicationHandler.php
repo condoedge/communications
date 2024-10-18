@@ -9,25 +9,38 @@ use Condoedge\Communications\Services\CommunicationHandlers\Contracts\DatabaseCo
 
 class DatabaseCommunicationHandler extends AbstractCommunicationHandler
 {
-    public function requiredAttributes()
+    public function communicableInterface()
     {
-        return array_merge(parent::requiredAttributes(), ['custom_button_text', 'custom_button_href']);
+        return DatabaseCommunicable::class;
     }
 
+    // NOTIFICATION
+    /**
+     * @param DatabaseCommunicable[] $communicables
+     * @param mixed $params
+     * @return void
+     */
+    public function notifyCommunicables(array $communicables, $params = [])
+    {
+        $notificationTemplate = NotificationTemplate::forCommunication($this->communication->id)->first();
+
+        $notificationTemplate?->sendNotification($communicables, $params);
+    }
+
+    // SAVING
     public function formInputs()
     {
         $notificationTemplate = NotificationTemplate::forCommunication($this->communication->id)->first();
 
         return _Rows(
             _Rows(parent::formInputs()),
-            
+
             _Translatable('button text')->name('custom_button_text', false)->default($notificationTemplate?->custom_button_text ?: []),
             _Translatable('button href')->name('custom_button_href', false)->default($notificationTemplate?->custom_button_href ?: []),
             _Checkbox('has reminder button')->name('has_reminder_button', false)->default($notificationTemplate?->has_reminder_button),
         );
     }
 
-    
     public function save($groupId = null, $attributes = [])
     {
         parent::save($groupId, $attributes);
@@ -42,20 +55,10 @@ class DatabaseCommunicationHandler extends AbstractCommunicationHandler
         $notificationTemplate->save();
     }
 
-    public function communicableInterface()
-    {
-        return DatabaseCommunicable::class;
-    }
+    // VALIDATION
 
-    /**
-     * @param DatabaseCommunicable[] $communicables
-     * @param mixed $params
-     * @return void
-     */
-    public function notifyCommunicables(array $communicables, $params = [])
+    public function requiredAttributes()
     {
-        $notificationTemplate = NotificationTemplate::forCommunication($this->communication->id)->first();
-
-        $notificationTemplate?->sendNotification($communicables, $params);
+        return array_merge(parent::requiredAttributes(), ['custom_button_text', 'custom_button_href']);
     }
 }
