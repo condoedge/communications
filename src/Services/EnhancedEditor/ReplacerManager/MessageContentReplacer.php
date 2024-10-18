@@ -9,7 +9,7 @@ use ReflectionFunction;
 class MessageContentReplacer
 {
 	protected $context;	
-	protected static $handlers;
+	protected $handlers;
 
 	protected $text;
 	protected $parsedText;
@@ -112,19 +112,19 @@ class MessageContentReplacer
 	 * @param array<string, callable> $handlers
 	 * @return void
 	 */
-	public static function setHandlers(array $handlers)
+	public function setHandlers(array $handlers)
 	{
 		static::$handlers = $handlers;
 	}
 
 
 	// MENTION PARSERS
-	static function getMentionHtml($type)
+	public function getMentionHtml($type)
 	{
 		return '<span class="mention" data-mention="' . $type . '">';
 	}
 
-	static function replaceMention($subject, $type, $replaceWith)
+	public function replaceMention($subject, $type, $replaceWith)
 	{
 		$start = strpos($subject, static::getMentionHtml($type));
 

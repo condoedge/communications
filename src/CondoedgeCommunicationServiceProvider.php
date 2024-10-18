@@ -5,6 +5,8 @@ namespace Condoedge\Communications;
 use Condoedge\Communications\EventsHandling\CommunicationTriggeredListener;
 use Condoedge\Communications\EventsHandling\Contracts\CommunicableEvent;
 use Condoedge\Communications\Models\CommunicationTemplateGroup;
+use Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\ContextEnhancer;
+use Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\MessageContentReplacer;
 use Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\VariablesManager\VariablesManager;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Event;
@@ -60,8 +62,16 @@ class CondoedgeCommunicationServiceProvider extends ServiceProvider
             \Route::middleware('web')->group(__DIR__.'/../routes/web.php');
         });
 
-        $this->app->singleton('page-editor-variables', function () {
+        $this->app->singleton('communication-variables-manager', function () {
             return new VariablesManager();
+        });
+
+        $this->app->singleton('communcations-context-enhancer', function () {
+            return new ContextEnhancer();
+        });
+
+        $this->app->singleton('communcations-content-replacer', function () {
+            return new MessageContentReplacer();
         });
     }
 

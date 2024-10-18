@@ -17,7 +17,7 @@
     "extra": {
         "laravel": {
             "providers": [
-                "Condoedge\\Communications\\KompoCommunicationServiceProvider"
+                "Condoedge\\Communications\\CondoedgeCommunicationServiceProvider"
             ]
         }
     },

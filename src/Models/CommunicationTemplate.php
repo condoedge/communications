@@ -2,7 +2,7 @@
 
 namespace Condoedge\Communications\Models;
 
-use Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\MessageContentReplacer;
+use Condoedge\Communications\Facades\ContentReplacer;
 use Illuminate\Database\Eloquent\Collection;
 use Kompo\Auth\Models\Model;
 
@@ -38,11 +38,9 @@ class CommunicationTemplate extends Model
 
     public function getParsedContent($params = [])
     {
-        $messageReplacer = new MessageContentReplacer();
-        $messageReplacer->setText($this->content);
-        $messageReplacer->injectContext($params);
-
-        return $messageReplacer->replace($this->type);
+        return ContentReplacer::setText($this->content)
+            ->injectContext($params)
+            ->replace($this->type);
     }
 
     // SCOPES

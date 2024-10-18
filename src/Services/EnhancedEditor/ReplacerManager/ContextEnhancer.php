@@ -4,21 +4,24 @@ namespace Condoedge\Communications\Services\EnhancedEditor\ReplacerManager;
 
 class ContextEnhancer
 {
-    protected static $enhancers = [];
+    protected $enhancers = [];
     protected $context;
     protected $enhancedContext = [];
 
-    public function __construct($context)
+    // SETTERS 
+    public function setEnhancers(array $enhancers)
+    {
+        $this->enhancers = $enhancers;
+
+        return $this;
+    }
+
+    public function setContext($context)
     {
         $this->context = $context;
-    }
 
-    // SETTERS 
-    public static function setEnhancers(array $enhancers)
-    {
-        static::$enhancers = $enhancers;
+        return $this;
     }
-
 
     // GETTERS
     public function getEnhancedContext()

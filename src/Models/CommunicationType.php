@@ -2,11 +2,10 @@
 
 namespace Condoedge\Communications\Models;
 
-use Condoedge\Communications\Models\Monitoring\CommunicationHandlers\AbstractCommunicationHandler;
-use Condoedge\Communications\Models\Monitoring\CommunicationHandlers\DatabaseCommunicationHandler;
-use Condoedge\Communications\Models\Monitoring\CommunicationHandlers\EmailCommunicationHandler;
-use Condoedge\Communications\Models\Monitoring\CommunicationHandlers\SmsCommunicationHandler;
-use Condoedge\Communications\Models\Monitoring\CommunicationTemplate;
+use Condoedge\Communications\Services\CommunicationHandlers\AbstractCommunicationHandler;
+use Condoedge\Communications\Services\CommunicationHandlers\SmsCommunicationHandler;
+use Condoedge\Communications\Services\CommunicationHandlers\EmailCommunicationHandler;
+use Condoedge\Communications\Services\CommunicationHandlers\DatabaseCommunicationHandler;
 
 enum CommunicationType: int 
 {
