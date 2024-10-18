@@ -30,6 +30,7 @@ class CommunicationsList extends Table
             _Th('translate.title'),
             _Th('translate.trigger'),
             _Th('translate.number-of-ways'),
+            _Th('')->class('w-8'),
         ];
     }
 
@@ -42,6 +43,7 @@ class CommunicationsList extends Table
             _Html($communicationGroup->title),
             _Html(!$trigger ? '-' : $trigger::getName()),
             _Html($communicationGroup->communicationTemplates()->isValid()->pluck('type')->map(fn($type) => $type->label())->implode(', ')),
+            _Delete($communicationGroup),
         )->selfGet('communicationTemplateForm', ['communicationTemplateGroup' => $communicationGroup->id])->inModal();
     }
 

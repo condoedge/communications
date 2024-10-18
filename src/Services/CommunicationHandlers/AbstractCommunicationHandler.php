@@ -12,7 +12,7 @@ abstract class AbstractCommunicationHandler
     protected CommunicationTemplate $communication;
     protected $type;
 
-    public function __construct(CommunicationTemplate $communication, CommunicationType $type)
+    public function __construct(?CommunicationTemplate $communication, ?CommunicationType $type)
     {
         $this->communication = $communication ?? new CommunicationTemplate;
         $this->type = $type;

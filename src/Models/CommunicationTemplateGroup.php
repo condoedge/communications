@@ -52,4 +52,16 @@ class CommunicationTemplateGroup extends Model
     {
         return $this->communicationTemplates()->where('type', $type)->first();
     }
+
+    public function deletable()
+    {
+        return $this->team_id == auth()->user()->team_id;
+    }
+
+    public function delete()
+    {
+        $this->communicationTemplates->each->delete();
+
+        return parent::delete();
+    }
 }

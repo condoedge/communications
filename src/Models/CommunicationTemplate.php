@@ -31,6 +31,11 @@ class CommunicationTemplate extends Model
         return $this->belongsTo(CommunicationTemplateGroup::class, 'template_group_id');
     }
 
+    public function communicationSendings()
+    {
+        return $this->hasMany(CommunicationSending::class);
+    }
+
     public function getHandler()
     {
         return $this->type->handler($this);
@@ -54,4 +59,14 @@ class CommunicationTemplate extends Model
         return $this->getHandler()->notify($communicables, $params);
     }
 
+    public function delete()
+    {
+        if ($this->communicationSendings()->count()) {
+            abort(403, 'translate.cannot-delete-a-communication-with-sendings');
+        }
+
+        NotificationTemplate::where('communication_id', $this->id)->delete();
+
+        return parent::delete();
+    }
 }
