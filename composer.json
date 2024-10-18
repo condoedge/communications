@@ -11,7 +11,7 @@
         "php": "^8.0",
         "laravel/framework": ">=5.6.0",
         "kompo/kompo": "^3.0",
-        "kompo/auth": "^0.4.88",
+        "kompo/auth": ">=0.4.88",
         "laravel/vonage-notification-channel": "^3.3"
     },
     "extra": {
