@@ -1,0 +1,26 @@
+{
+    "name": "condoedge/communications",
+    "description": "A communications package for kompo/kompo",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Condoedge\\Communications\\": "src/"
+        }
+    },
+    "require": {
+        "php": "^8.0",
+        "laravel/framework": ">=5.6.0",
+        "kompo/kompo": "^3.0",
+        "kompo/auth": "^0.4.88",
+        "laravel/vonage-notification-channel": "^3.3"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Condoedge\\Communications\\KompoCommunicationServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
