@@ -2,8 +2,6 @@
 
 namespace Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\VariablesManager;
 
-use Illuminate\Database\Eloquent\Collection;
-
 class DefaultVarSection
 {
     protected string $title;
@@ -13,7 +11,7 @@ class DefaultVarSection
      */
     protected $links = [];
     
-    public function __construct(string $title, $links, string $classes = 'bg-level1 py-2 px-3 rounded-xl text-white min-w-[200px] full-width-submenu')
+    public function __construct(string $title, $links, string $classes = 'bg-white border border-level1 py-2 px-3 rounded-xl text-level1 min-w-[200px] full-width-submenu')
     {
         $this->title = $title;
         $this->links = $links;

@@ -82,15 +82,16 @@ abstract class AbstractCommunicationHandler
 
     /**
      * Return the form inputs for the communication to integrate into the `getForm` method
-     * @return array<\Kompo\Elements\Element>
+     * @return array<\Kompo\Elements\Element>|\Kompo\Elements\Element
      */
-    public function formInputs()
+    public function formInputs($trigger = null)
     {
         $attrs = $this->communication->getAttributes();
 
         return [
             _Translatable('Subject')->name('subject', false)->default(json_decode($attrs['subject'] ?? '{}')),
-            _EnhancedEditor('Content')->withoutHeight()->name('content', false)->default(json_decode($attrs['content'] ?? '{}')),
+            _EnhancedEditor('Content')->name('content', false)->default(json_decode($attrs['content'] ?? '{}'))
+                ->filterVarsToThisIds($trigger::validVariablesIds()),
         ];
     }
 
@@ -98,10 +99,10 @@ abstract class AbstractCommunicationHandler
      * Return the form for the communication
      * @return \Kompo\Rows
      */
-    final public function getForm()
+    final public function getForm($trigger = null)
     {
         return _Rows(
-            _Rows($this->formInputs()),
+            _Rows($this->formInputs($trigger)),
 
             _Hidden()->name('previous_communication_type', false)->value($this->type),
         );

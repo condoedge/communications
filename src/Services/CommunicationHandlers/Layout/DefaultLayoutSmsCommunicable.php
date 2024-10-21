@@ -34,7 +34,9 @@ class DefaultLayoutSmsCommunicable extends Mailable
      */
     public function toVonage(object $notifiable): VonageMessage
     {
+        $plainText = strip_tags($this->communication->getParsedContent($this->params));
+
         return (new VonageMessage)
-            ->content($this->communication->getParsedContent($this->params));
+            ->content($plainText);
     }
 }

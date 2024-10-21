@@ -79,7 +79,7 @@ class MessageContentReplacer
     {
         $parsedText = $this->text;
 
-        collect(Variables::getRawVariables())->each(function ($vars) use ($type, &$parsedText) {
+        collect(Variables::getFlatRawVariables())->each(function ($vars) use ($type, &$parsedText) {
             $this->processVariable($vars, $type, $parsedText);
         });
 

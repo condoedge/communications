@@ -43,7 +43,7 @@ class CommunicationTemplateForm extends Modal
                     ->panelLoading('communication-type-form'),
 
                 _Panel(
-                    CommunicationType::EMAIL->handler($this->model->findCommunicationTemplate(CommunicationType::EMAIL->value))->getForm(),
+                    CommunicationType::EMAIL->handler($this->model->findCommunicationTemplate(CommunicationType::EMAIL->value))->getForm($this->model->trigger),
                 )->id(id: 'communication-type-form')->class('mb-6'),
             ),
 
@@ -64,7 +64,7 @@ class CommunicationTemplateForm extends Modal
 
         $communicationType = CommunicationType::from($communicationType);
 
-        return $communicationType->handler($oldCommunication)->getForm();
+        return $communicationType->handler($oldCommunication)->getForm($this->model->trigger);
     }
 
     protected function savePreviousCommunication($communicationType)

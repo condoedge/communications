@@ -74,12 +74,17 @@ class VariablesManager
     }
 
     /**
-     * Get the raw variables.
+     * Get the flat raw variables.
      * @return \Illuminate\Support\Collection<array{string, string, string, bool}>
      */
-    public function getRawVariables()
+    public function getFlatRawVariables()
     {
         return collect($this->rawVariables)->flatten(2);
+    }
+
+    public function getRawVariables($group = 'default')
+    {
+        return $this->rawVariables[$group];
     }
 
     /**
@@ -100,7 +105,7 @@ class VariablesManager
      * @param array $vars
      * @return array
      */
-    protected function automaticVarParsing(array $vars) 
+    public function automaticVarParsing(array $vars) 
     {
         return collect($vars)->map(callback: function($vars, $title){
             return $this->sectionParser::fromArray($title, $vars)->getElementsParsed();

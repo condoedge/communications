@@ -1,7 +1,7 @@
 <template>
     <div>
         <div>
-            <div class="py-2">
+            <div class="">
                 <vl-form-field v-bind="$_wrapperAttributes">
                     <vlLocaleTabs :locales="locales" :activeLocale="activeLocale" @changeLocale="changeTab" />
                     <ckeditor class="vlFormControl" ref="content" v-model="currentTranslation" v-bind="$_attributes"
@@ -9,7 +9,7 @@
                 </vl-form-field>
             </div>
         </div>
-        <div class="py-3">
+        <div class="py-1">
             <div class="vlFormLabel" v-if="$_config('titleVariables')">
                 {{ $_config("titleVariables") }}
             </div>

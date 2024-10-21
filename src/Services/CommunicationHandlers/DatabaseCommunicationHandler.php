@@ -28,17 +28,17 @@ class DatabaseCommunicationHandler extends AbstractCommunicationHandler
     }
 
     // SAVING
-    public function formInputs()
+    public function formInputs($trigger = null)
     {
         $notificationTemplate = NotificationTemplate::forCommunication($this->communication->id)->first();
 
-        return _Rows(
-            // _Rows(parent::formInputs()),
+        return [
+            _Rows(parent::formInputs($trigger)),
 
             _Translatable('button text')->name('custom_button_text', false)->default($notificationTemplate?->custom_button_text ?: []),
             _Translatable('button href')->name('custom_button_href', false)->default($notificationTemplate?->custom_button_href ?: []),
             _Checkbox('has reminder button')->name('has_reminder_button', false)->default($notificationTemplate?->has_reminder_button),
-        );
+        ];
     }
 
     public function save($groupId = null, $attributes = [])

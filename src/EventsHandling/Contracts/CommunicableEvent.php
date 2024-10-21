@@ -26,4 +26,12 @@ interface CommunicableEvent
      * @return string
      */
     static function getName(): string;
+
+    /**
+     * The variables that the communication template should have, used to filter the enhanced editor variables.
+     * Return null to allow everything.
+     * 
+     * @return array|null
+     */
+    static function validVariablesIds(): ?array;
 }
