@@ -47,8 +47,8 @@ class CommunicationTemplateForm extends Modal
                 )->id(id: 'communication-type-form')->class('mb-6'),
             ),
 
-            _SubmitButton(!$this->model->id ? 'next' : 'save')
-                ->when($this->model->id, fn($el) => $el->closeModal()->refresh('communications-list')),
+            _SubmitButton(!$this->model->id ? 'next' : 'save')->refresh('communications-list')
+                ->when($this->model->id, fn($el) => $el->closeModal()),
         );
     }
 

@@ -33,7 +33,7 @@ class DatabaseCommunicationHandler extends AbstractCommunicationHandler
         $notificationTemplate = NotificationTemplate::forCommunication($this->communication->id)->first();
 
         return _Rows(
-            _Rows(parent::formInputs()),
+            // _Rows(parent::formInputs()),
 
             _Translatable('button text')->name('custom_button_text', false)->default($notificationTemplate?->custom_button_text ?: []),
             _Translatable('button href')->name('custom_button_href', false)->default($notificationTemplate?->custom_button_href ?: []),

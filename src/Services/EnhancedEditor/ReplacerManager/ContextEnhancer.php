@@ -2,11 +2,18 @@
 
 namespace Condoedge\Communications\Services\EnhancedEditor\ReplacerManager;
 
+use Condoedge\Communications\Services\CommunicationHandlers\Contracts\Communicable;
+
 class ContextEnhancer
 {
     protected $enhancers = [];
     protected $context = [];
     protected $enhancedContext = [];
+
+    public function __construct()
+    {
+        $this->setCommunicableEnhancer();
+    }
 
     // SETTERS 
     /**
@@ -30,7 +37,38 @@ class ContextEnhancer
      */
     public function setEnhancers(array $enhancers)
     {
-        $this->enhancers = $enhancers;
+        $this->enhancers = array_merge($this->enhancers, $enhancers);
+
+        return $this;
+    }
+
+    /**
+     * Set the enhancer for the communicable.
+     * @return void
+     */
+    public function setCommunicableEnhancer()
+    {
+        $this->enhancers = [
+            'communicable' => function (Communicable $communicable) {
+                    $context = [];
+
+                    $context[$communicable->getContextKey()] = $communicable;
+
+                    return $context;
+                }
+        ];
+    }
+
+    /**
+     * Set the communicable to customize the context for them.
+     * @param \Condoedge\Communications\Services\CommunicationHandlers\Contracts\Communicable $communicable
+     * @return static
+     */
+    public function setCommunicable(Communicable $communicable)
+    {
+        $this->context = array_merge($this->context, [
+            'communicable' => $communicable
+        ]);
 
         return $this;
     }
@@ -62,10 +100,6 @@ class ContextEnhancer
      */
     public function getEnhancedContext()
     {
-        if ($this->enhancedContext) {
-            return $this->enhancedContext;
-        }
-
         collect($this->context)->each(function ($value, $key) {
             if (array_key_exists($key, $this->enhancers)) {
                 $enhancer = $this->enhancers[$key];
@@ -73,7 +107,7 @@ class ContextEnhancer
                 $this->enhancedContext = array_merge($enhancer($value), $this->enhancedContext);
             }
 
-            if (method_exists($value, 'enhanceContext')) {
+            if ((gettype($value) == 'string' || gettype($value) == 'object') && method_exists($value, 'enhanceContext')) {
                 $this->enhancedContext = array_merge($value->enhanceContext($value), $this->enhancedContext);
             }
         });

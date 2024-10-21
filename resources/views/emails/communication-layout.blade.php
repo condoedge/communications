@@ -1,1 +1,4 @@
-<p>{{$content}}</p>
+@component('mail::message')
+<p>{!! $content !!}</p>
+@endcomponent
+

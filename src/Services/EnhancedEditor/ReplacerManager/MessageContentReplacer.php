@@ -13,8 +13,8 @@ use ReflectionFunction;
  */
 class MessageContentReplacer
 {
-	protected $context;	
-	protected $handlers;
+	protected $context = [];	
+	protected $handlers = [];
 
 	protected string $text;
 
@@ -39,7 +39,7 @@ class MessageContentReplacer
      */
     public function injectContext($context)
 	{
-		$this->context = $context;
+		$this->context = array_merge($this->context, $context);
 
 		return $this;
 	}
@@ -78,7 +78,7 @@ class MessageContentReplacer
 	public function replace(?CommunicationType $type = null)
     {
         $parsedText = $this->text;
-		
+
         collect(Variables::getRawVariables())->each(function ($vars) use ($type, &$parsedText) {
             $this->processVariable($vars, $type, $parsedText);
         });
@@ -114,7 +114,7 @@ class MessageContentReplacer
     /**
      * Get the arguments to be passed to the handler using reflection to get the parameters names
      * @param callable $handler
-     * @param CommunicationType $type
+     * @param ?CommunicationType $type
      * @return array
      */
     protected function getHandlerArguments($handler, $type)
@@ -154,10 +154,20 @@ class MessageContentReplacer
         $modelName = $parts[0];
         $attribute = $parts[1] ?? null;
 
-        $replaceWith = $attribute ? ($this->context[$modelName] ?? null)?->$attribute : ($this->context[$modelName] ?? null);
+        if ($attribute) {
+            if (method_exists($this->context[$modelName], $attribute)) {
+                $replaceWith = $this->context[$modelName]->$attribute();
+            } else {
+                $replaceWith = $this->context[$modelName]?->$attribute;
+            }
+        } else {
+            $replaceWith = $this->context[$modelName];
+        }
 
         if (is_callable($replaceWith)) {
-            $replaceWith = $replaceWith();
+            $args = $this->getHandlerArguments($replaceWith, null);
+
+            $replaceWith = $replaceWith(...$args);
         }
 
         return $this->replaceMention($this->text, $id, $replaceWith);

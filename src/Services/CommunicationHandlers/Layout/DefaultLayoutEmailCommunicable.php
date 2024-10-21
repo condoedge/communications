@@ -15,6 +15,7 @@ class DefaultLayoutEmailCommunicable extends Mailable
     public function __construct($communication, $params = [])
     {
         $this->communication = $communication;
+        $this->params = $params;
     }
 
     public function build()
@@ -23,5 +24,5 @@ class DefaultLayoutEmailCommunicable extends Mailable
                     ->markdown('emails.communication-layout', [
                         'content' => $this->communication->getParsedContent($this->params),
                     ]);
-    }    
+    }
 }
