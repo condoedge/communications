@@ -82,6 +82,11 @@ class VariablesManager
         return collect($this->rawVariables)->flatten(2);
     }
 
+    public function searchVarById($id)
+    {
+        return $this->getFlatRawVariables()->firstWhere('0', $id);
+    }
+
     public function getRawVariables($group = 'default')
     {
         return $this->rawVariables[$group];

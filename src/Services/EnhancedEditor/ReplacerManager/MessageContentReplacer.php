@@ -184,6 +184,13 @@ class MessageContentReplacer
 		return '<span class="mention" data-mention="' . $varName . '">';
 	}
 
+    public function getVarHtml($varId)
+	{
+        $var = Variables::searchVarById($varId);
+
+		return '<span class="mention" data-mention="' . $varId . '">' . $var[1] . '</span>';
+	}
+
     /**
      * Replace the mention in the text with the value passed
      * @param string $subject The text to be parsed

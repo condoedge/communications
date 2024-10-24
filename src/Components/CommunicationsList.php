@@ -14,7 +14,12 @@ class CommunicationsList extends Table
     {
         return _FlexBetween(
             _Html('communications')->miniTitle(),
-            _Button('form')->selfGet('communicationTemplateForm')->inModal(),
+
+            _Flex(
+                _Button('translate.check-templates-triggers')->selfGet('checkDefaultTemplates')->inModal(),
+                _Button('translate.create-default-templates')->selfPost('createDefaultTemplates')->alert('translate.created-templates')->refresh(),
+                _Button('form')->selfGet('communicationTemplateForm')->inModal(),
+            )->class('gap-3'),
         );
     }
 
@@ -51,4 +56,29 @@ class CommunicationsList extends Table
 	{
 		return new CommunicationTemplateForm($groupId);
 	}
+
+    public function checkDefaultTemplates()
+    {
+        $triggers = collect(CommunicationTemplateGroup::getTriggers())->filter(function ($trigger) {
+            return !CommunicationTemplateGroup::where('trigger', $trigger)->exists();
+        })->map(function ($trigger) {
+            return _Html($trigger::getName())->class('text-danger');
+        });
+
+        return _Rows(
+            _Html($triggers->isEmpty() ? 'translate.all-templates-are-set' : 'translate.some-templates-are-missing')
+                ->class('text-lg')
+                ->class($triggers->isEmpty() ? 'text-positive' : 'text-black'), 
+            ...$triggers
+        )->class('p-4');
+    }
+
+    public function createDefaultTemplates()
+    {
+        collect(CommunicationTemplateGroup::getTriggers())->each(function ($trigger) {
+            if (CommunicationTemplateGroup::where('trigger', $trigger)->exists()) return;
+
+            CommunicationTemplateGroup::createForTrigger($trigger);
+        });
+    }
 }

@@ -53,6 +53,36 @@ class CommunicationTemplateGroup extends Model
         return $this->communicationTemplates()->where('type', $type)->first();
     }
 
+    public static function createForTrigger($trigger)
+    {
+        $communicationTemplate = new static;
+        $communicationTemplate->trigger = $trigger;
+        $communicationTemplate->title = $trigger::getName();
+        $communicationTemplate->save();
+
+        collect(CommunicationType::cases())->each(function ($type) use ($communicationTemplate) {
+            $sluggedName = \Str::slug($communicationTemplate->title);
+            $viewName = "stubs/communication-templates/default-{$sluggedName}-{$type->value}";
+
+            $content = collect(array_keys(config('kompo.locales')))->mapWithKeys(function($locale) use ($viewName) { 
+                if (!file_exists(resource_path('views/' . $viewName . '-' . $locale . ".blade.php"))) return [$locale => ''];
+
+                return [$locale => view($viewName .'-'. $locale)->render()];
+            })->filter();
+
+            if (!$content->count()) {
+                return null;
+            }
+
+            $type->handler(null)->save($communicationTemplate->id, [
+                'subject' => collect(array_keys(config('kompo.locales')))->mapWithKeys(fn($locale) => [$locale => $communicationTemplate->title]),
+                'content' => $content->toArray(),
+            ]);
+        });
+
+        return $communicationTemplate;
+    }
+
     public function deletable()
     {
         return $this->team_id == auth()->user()->team_id;
