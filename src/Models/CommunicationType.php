@@ -18,9 +18,9 @@ enum CommunicationType: int
     public function label()
     {
         return match ($this) {
-            self::EMAIL => __('translate.communication-email'),
-            self::SMS => __('translate.communication-sms'),
-            self::DATABASE => __('translate.communication-database'),
+            self::EMAIL => __('communications.communication-email'),
+            self::SMS => __('communications.communication-sms'),
+            self::DATABASE => __('communications.communication-database'),
         };
     }
 

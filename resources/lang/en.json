@@ -1,3 +1,16 @@
 {
-	
+	"communications.all-templates-are-set": "All templates are set",
+	"communications.check-templates-triggers": "Check template triggers",
+	"communications.communication-database": "Database",
+	"communications.communication-email": "Email",
+	"communications.communication-sms": "SMS",
+	"communications.communications": "Communications",
+	"communications.create-default-templates": "Create default template",
+	"communications.date": "Date",
+	"communications.number-of-ways": "Number of ways",
+	"communications.some-templates-are-missing": "Some templates are missing",
+	"communications.template-created": "Template created!",
+	"communications.title": "Title",
+	"communications.trigger": "Trigger",
+	"error.cannot-delete-a-communication-with-sendings": "Cannot delete a communications with sendings"
 }
