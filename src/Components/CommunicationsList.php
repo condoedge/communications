@@ -13,11 +13,11 @@ class CommunicationsList extends Table
     public function top()
     {
         return _FlexBetween(
-            _Html('communications')->miniTitle(),
+            _Html('communications.communications')->miniTitle(),
 
             _Flex(
-                _Button('translate.check-templates-triggers')->selfGet('checkDefaultTemplates')->inModal(),
-                _Button('translate.create-default-templates')->selfPost('createDefaultTemplates')->alert('translate.created-templates')->refresh(),
+                _Button('communications.check-templates-triggers')->selfGet('checkDefaultTemplates')->inModal(),
+                _Button('communications.create-default-templates')->selfPost('createDefaultTemplates')->alert('communications.template-created')->refresh(),
                 _Button('form')->selfGet('communicationTemplateForm')->inModal(),
             )->class('gap-3'),
         );
@@ -31,10 +31,10 @@ class CommunicationsList extends Table
     public function headers()
     {
         return [
-            _Th('translate.date'),
-            _Th('translate.title'),
-            _Th('translate.trigger'),
-            _Th('translate.number-of-ways'),
+            _Th('communications.date'),
+            _Th('communications.title'),
+            _Th('communications.trigger'),
+            _Th('communications.number-of-ways'),
             _Th('')->class('w-8'),
         ];
     }
@@ -66,7 +66,7 @@ class CommunicationsList extends Table
         });
 
         return _Rows(
-            _Html($triggers->isEmpty() ? 'translate.all-templates-are-set' : 'translate.some-templates-are-missing')
+            _Html($triggers->isEmpty() ? 'communications.all-templates-are-set' : 'communications.some-templates-are-missing')
                 ->class('text-lg')
                 ->class($triggers->isEmpty() ? 'text-positive' : 'text-black'), 
             ...$triggers

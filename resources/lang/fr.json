@@ -1,3 +1,16 @@
 {
-	
+	"communications.all-templates-are-set": "Tous les modèles sont définis",
+	"communications.check-templates-triggers": "Vérifier les déclencheurs de modèle",
+	"communications.communication-database": "Base de données",
+	"communications.communication-email": "Courriel",
+	"communications.communication-sms": "SMS",
+	"communications.communications": "Communications",
+	"communications.create-default-templates": "Créer un modèle par défaut",
+	"communications.date": "Date",
+	"communications.number-of-ways": "Nombre de façons",
+	"communications.some-templates-are-missing": "Certains modèles sont manquants",
+	"communications.template-created": "Modèle créé !",
+	"communications.title": "Titre",
+	"communications.trigger": "Déclencheur",
+	"error.cannot-delete-a-communication-with-sendings": "Impossible de supprimer une communication avec des envois"
 }
