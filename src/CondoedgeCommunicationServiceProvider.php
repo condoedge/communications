@@ -31,7 +31,7 @@ class CondoedgeCommunicationServiceProvider extends ServiceProvider
 
         $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
 
-        $this->loadViewsFrom(__DIR__.'/../resources/views', 'communications');
+        $this->loadViewsFrom(__DIR__.'/../resources/views', 'condoedge-comms');
 
         //Usage: php artisan vendor:publish --tag="condoedge-communications-js"
         $this->publishes([

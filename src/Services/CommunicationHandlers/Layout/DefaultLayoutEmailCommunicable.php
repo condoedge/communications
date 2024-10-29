@@ -21,7 +21,7 @@ class DefaultLayoutEmailCommunicable extends Mailable
     public function build()
     {
         return $this->subject($this->communication->subject)
-                    ->markdown('emails.communication-layout', [
+                    ->markdown('condoedge-comms::emails.communication-layout', [
                         'content' => $this->communication->getParsedContent($this->params),
                     ]);
     }

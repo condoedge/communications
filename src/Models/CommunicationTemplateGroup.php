@@ -60,8 +60,8 @@ class CommunicationTemplateGroup extends Model
         $communicationTemplate->title = $trigger::getName();
         $communicationTemplate->save();
 
-        collect(CommunicationType::cases())->each(function ($type) use ($communicationTemplate) {
-            $sluggedName = \Str::slug($communicationTemplate->title);
+        collect(CommunicationType::cases())->each(function ($type) use ($communicationTemplate, $trigger) {
+            $sluggedName = \Str::slug($trigger::class);
             $viewName = "stubs/communication-templates/default-{$sluggedName}-{$type->value}";
 
             $content = collect(array_keys(config('kompo.locales')))->mapWithKeys(function($locale) use ($viewName) { 
