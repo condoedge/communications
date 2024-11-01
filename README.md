@@ -79,7 +79,7 @@ class RandomTriggerer implements CommunicableEvent
 
     static function getName(): string
     {
-        return __('translate.a-random-triggerer');
+        return __('communications.a-random-triggerer');
     }
 }
 ```
