@@ -80,7 +80,7 @@ class MessageContentReplacer
         $parsedText = $this->text;
 
         collect(Variables::getFlatRawVariables())->each(function ($vars) use ($type, &$parsedText) {
-            $this->processVariable($vars, $type, $parsedText);
+            $this->processVariable($vars, $type, parsedText: $parsedText);
         });
 
         return $parsedText;
@@ -97,15 +97,15 @@ class MessageContentReplacer
     {
         [$id, $name, $classes, $automaticHandling] = $var;
 
-        $exists = strpos($this->text, $this->getMentionHtml($id));
+        $exists = strpos($parsedText, $this->getMentionHtml($id));
 
         if ($exists !== false) {
             $handler = $this->handlers[$id] ?? null;
 
             if ($handler) {
                 $args = $this->getHandlerArguments($handler, $type);
-                $parsedText = $this->replaceMention($this->text, $id, $handler(...$args));
-            } else if ($automaticHandling ) {
+                $parsedText = $this->replaceMention($parsedText, $id, $handler(...$args));
+            } else if ($automaticHandling) {
                 $parsedText = $this->handleAutomaticReplacement($id, $parsedText);
             }
         }
