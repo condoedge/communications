@@ -4,10 +4,12 @@ namespace Condoedge\Communications;
 
 use Condoedge\Communications\EventsHandling\CommunicationTriggeredListener;
 use Condoedge\Communications\EventsHandling\Contracts\CommunicableEvent;
+use Condoedge\Communications\Facades\ContentReplacer;
 use Condoedge\Communications\Models\CommunicationTemplateGroup;
 use Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\ContextEnhancer;
 use Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\MessageContentReplacer;
 use Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\VariablesManager\VariablesManager;
+use Condoedge\Communications\Services\MailElements\MailElement;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
@@ -73,6 +75,16 @@ class CondoedgeCommunicationServiceProvider extends ServiceProvider
         $this->app->singleton('communcations-content-replacer', function () {
             return new MessageContentReplacer();
         });
+
+        ContentReplacer::setPostProcessors([
+            function ($result) {
+                if ($result instanceof MailElement) {
+                    return $result->getHtml();
+                }
+
+                return $result;
+            }
+        ]);
     }
 
     protected function loadHelpers()

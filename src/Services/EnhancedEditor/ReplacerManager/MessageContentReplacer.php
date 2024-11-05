@@ -15,6 +15,7 @@ class MessageContentReplacer
 {
 	protected $context = [];	
 	protected $handlers = [];
+    protected $postProcessors = [];
 
 	protected string $text;
 
@@ -70,6 +71,19 @@ class MessageContentReplacer
         return $this;
 	}
 
+    /**
+     * A generic enhancer to be used to post process the result of the handlers. It will be applied in the order they were set
+     * The specific case because i created this was to parse mail elements in the handlers
+     * @param array $postProcessors
+     * @return static
+     */
+    public function setPostProcessors(array $postProcessors)
+    {
+        $this->postProcessors = array_merge($this->postProcessors, $postProcessors);
+
+        return $this;
+    }
+
 	/**
 	 * Convert the text to the parsed version. Replacing the mentions with the values extracted from the context using the handlers
 	 * @param CommunicationType $type
@@ -104,11 +118,22 @@ class MessageContentReplacer
 
             if ($handler) {
                 $args = $this->getHandlerArguments($handler, $type);
-                $parsedText = $this->replaceMention($parsedText, $id, $handler(...$args));
+                $parsedText = $this->replaceMention($parsedText, $id, $this->handlerCalling($handler, $args));
             } else if ($automaticHandling) {
                 $parsedText = $this->handleAutomaticReplacement($id, $parsedText);
             }
         }
+    }
+
+    protected function handlerCalling($handler, $args)
+    {
+        $result = $handler(...$args);
+
+        foreach ($this->postProcessors as $processor) {
+            $result = $processor($result);
+        }
+
+        return $result;
     }
 
     /**
