@@ -14,4 +14,10 @@ interface Communicable
      * @return string
      */
     public function getContextKey();
+
+    public function scopeValidForCommunication($query);
+
+    public function scopeSearch($query, $search);
+
+    public function label();
 }

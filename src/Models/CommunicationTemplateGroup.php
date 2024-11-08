@@ -7,9 +7,21 @@ use Illuminate\Database\Eloquent\Collection;
 
 class CommunicationTemplateGroup extends Model
 {
+    // RELATIONSHIPS
     public function communicationTemplates()
     {
         return $this->hasMany(CommunicationTemplate::class, 'template_group_id');
+    }
+
+    // CALCULATED FIELDS
+    public static function getTriggers()
+    {
+        return config('kompo-communications.triggers');
+    }
+
+    public function findCommunicationTemplate($type)
+    {
+        return $this->communicationTemplates()->where('type', $type)->first();
     }
 
     // SCOPES
@@ -22,7 +34,13 @@ class CommunicationTemplateGroup extends Model
     {
         return $query->whereHas('communicationTemplates', fn($q) => $q->isValid());
     }
+
+    public function scopeVoids($query)
+    {
+        return $query->doesntHave('communicationTemplates');
+    }
     
+    // ACTIONS
     public function notify(array|Collection $communicables, $type = null, $params = []) 
     {
         $communications = $this->communicationTemplates()
@@ -36,21 +54,6 @@ class CommunicationTemplateGroup extends Model
     {
         return self::voids()->whereDate('created_at', '<', now()->subDay())
             ->delete();
-    }
-
-    public function scopeVoids($query)
-    {
-        return $query->doesntHave('communicationTemplates');
-    }
-
-    public static function getTriggers()
-    {
-        return config('kompo-communications.triggers');
-    }
-
-    public function findCommunicationTemplate($type)
-    {
-        return $this->communicationTemplates()->where('type', $type)->first();
     }
 
     public static function createForTrigger($trigger)

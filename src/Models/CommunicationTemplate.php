@@ -4,6 +4,7 @@ namespace Condoedge\Communications\Models;
 
 use Condoedge\Communications\Facades\ContentReplacer;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Log;
 use Kompo\Auth\Models\Model;
 
 class CommunicationTemplate extends Model
@@ -26,6 +27,7 @@ class CommunicationTemplate extends Model
         return parent::save($options);
     }
 
+    // RELATIONSHIPS
     public function group()
     {
         return $this->belongsTo(CommunicationTemplateGroup::class, 'template_group_id');
@@ -36,6 +38,7 @@ class CommunicationTemplate extends Model
         return $this->hasMany(CommunicationSending::class);
     }
 
+    // CALCULATED FIELDS
     public function getHandler()
     {
         return $this->type->handler($this);
@@ -54,9 +57,20 @@ class CommunicationTemplate extends Model
         return $query->where('is_draft', 0);
     }
     
+    // ACTIONS
     public function notify(array|Collection $communicables, $params = []) 
     {
-        return $this->getHandler()->notify($communicables, $params);
+        $communicationSending = CommunicationSending::createOneForCommunicationTemplate($this, $communicables, $params);
+
+        try {
+            $this->getHandler()->notify($communicables, $params);
+            $communicationSending->status = CommunicationSendingStatus::SENT;
+        } catch (\Exception $e) {
+            Log::warning("Error sending communication: " . $e->getMessage(), $e->getTrace());
+            $communicationSending->status = CommunicationSendingStatus::FAILED;
+        } finally {
+            $communicationSending->save();
+        }
     }
 
     public function delete()

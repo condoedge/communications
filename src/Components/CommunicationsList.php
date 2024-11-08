@@ -35,7 +35,7 @@ class CommunicationsList extends Table
             _Th('communications.title'),
             _Th('communications.trigger'),
             _Th('communications.number-of-ways'),
-            _Th('')->class('w-8'),
+            _Th('')->class('w-16'),
         ];
     }
 
@@ -48,8 +48,19 @@ class CommunicationsList extends Table
             _Html($communicationGroup->title),
             _Html(!$trigger ? '-' : $trigger::getName()),
             _Html($communicationGroup->communicationTemplates()->isValid()->pluck('type')->map(fn($type) => $type->label())->implode(', ')),
-            _Delete($communicationGroup),
+            _Flex(
+                _Delete($communicationGroup),
+                _TripleDotsDropdown(
+                    !method_exists($communicationGroup->trigger, 'manuallyForm') ? null
+                        : _Link('translate.manual-trigger')->class('px-2 py-1')->selfGet('getManuallyForm', ['trigger' => $trigger, 'communication_id' => $communicationGroup->id])->inModal(),
+                ),
+            )->class('gap-1'),
         )->selfGet('communicationTemplateForm', ['communicationTemplateGroup' => $communicationGroup->id])->inModal();
+    }
+
+    public function getManuallyForm()
+    {
+        return request('trigger')::manuallyForm(request('communication_id'));
     }
 
     public function communicationTemplateForm($groupId = null)

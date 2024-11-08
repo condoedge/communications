@@ -24,7 +24,9 @@ class CommunicationTriggeredListener implements ShouldQueue
             'trigger' => $event::class,
         ]))->getEnhancedContext();
 
-        $groups = CommunicationTemplateGroup::forTrigger($event::class)->hasValid()->get();
+        $groups = CommunicationTemplateGroup::forTrigger($event::class)->hasValid()
+            ->when(method_exists($event, 'getSpecificCommunicationsIds'), fn($q) => $q->whereIn('id', $event->getSpecificCommunicationsIds()))
+            ->get();
 
         $groups->each->notify($event->getCommunicables(), null, $params);
     }
