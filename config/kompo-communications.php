@@ -1,9 +1,7 @@
 <?php
 
-use Condoedge\Communications\Triggers\ManualTrigger;
-
 return [
     'triggers' => [
-        ManualTrigger::class,
+        \Condoedge\Communications\Triggers\ManualTrigger::class,
     ],
 ];
