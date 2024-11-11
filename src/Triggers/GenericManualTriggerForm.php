@@ -21,7 +21,7 @@ class GenericManualTriggerForm extends Modal
     {
         $communicablesIds = request('communicables_ids');
 
-        if ($communicablesIds->some(function ($id) {
+        if (collect($communicablesIds)->some(function ($id) {
             return $id == 'all';
         })) {
             $communicablesIds = 'all';
@@ -43,7 +43,7 @@ class GenericManualTriggerForm extends Modal
 
             _Panel()->id('communicables-select'),
 
-            _SubmitButton('translate.send'),
+            _SubmitButton('translate.send')->alert('translate.sent')->closeModal(),
         );
     }
 
@@ -51,20 +51,9 @@ class GenericManualTriggerForm extends Modal
     {
         if(!request('communicable_model')) return null;
 
-        return _MultiSelect('translate.select-communicables')->name(name: 'communicables_ids')
-            ->searchOptions(0, 'searchCommunicables');
-    }
-
-    public function searchCommunicables($search)
-    {
-        // TODO request('communicable_model') is not working as expected
-        $communicableModel = request('communicable_model') ?? \App\Models\User::class;
-
-        $communicables = $communicableModel::search($search)->get();
-
-        return array_merge(['all' => __('translate.everyone')], $communicables->mapWithKeys(fn($c) => [
-            $c->id => $c->getName()
-        ])->toArray());
+        return new CommunicableSelectForm(null, [
+            'communicable_model' => request('communicable_model')
+        ]);
     }
 
     public function retrieveCommunication($id)
