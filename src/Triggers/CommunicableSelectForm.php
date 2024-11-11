@@ -15,7 +15,7 @@ class CommunicableSelectForm extends Form
 
     public function render()
     {
-        return _MultiSelect('translate.select-communicables')->name(name: 'communicables_ids')
+        return _MultiSelect('communications.select-communicables')->name(name: 'communicables_ids')
             ->searchOptions(3, 'searchCommunicables');
     }
 
@@ -23,7 +23,7 @@ class CommunicableSelectForm extends Form
     {
         $communicables = $this->communicableModel::search($search)->get();
 
-        return array_merge(['all' => __('translate.everyone')], $communicables->mapWithKeys(fn($c) => [
+        return array_merge(['all' => __('communications.everyone')], $communicables->mapWithKeys(fn($c) => [
             $c->id => $c->label()
         ])->toArray());
     }

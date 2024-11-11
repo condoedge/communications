@@ -52,7 +52,7 @@ class CommunicationsList extends Table
                 _Delete($communicationGroup),
                 _TripleDotsDropdown(
                     !method_exists($communicationGroup->trigger, 'manuallyForm') ? null
-                        : _Link('translate.manual-trigger')->class('px-2 py-1')->selfGet('getManuallyForm', ['trigger' => $trigger, 'communication_id' => $communicationGroup->id])->inModal(),
+                        : _Link('communications.manual-trigger')->class('px-2 py-1')->selfGet('getManuallyForm', ['trigger' => $trigger, 'communication_id' => $communicationGroup->id])->inModal(),
                 ),
             )->class('gap-1'),
         )->selfGet('communicationTemplateForm', ['communicationTemplateGroup' => $communicationGroup->id])->inModal();

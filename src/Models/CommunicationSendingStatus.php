@@ -13,9 +13,9 @@ enum CommunicationSendingStatus: int
     public function label()
     {
         return match ($this) {
-            self::PENDING => __('translate.pending'),
-            self::SENT => __('translate.sent'),
-            self::FAILED => __('translate.failed'),
+            self::PENDING => __('communications.pending'),
+            self::SENT => __('communications.sent'),
+            self::FAILED => __('communications.failed'),
         };
     }
 
