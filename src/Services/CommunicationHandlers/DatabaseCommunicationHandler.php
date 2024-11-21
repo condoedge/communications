@@ -66,6 +66,6 @@ class DatabaseCommunicationHandler extends AbstractCommunicationHandler
 
     public function requiredAttributes()
     {
-        return array_merge(parent::requiredAttributes(), ['custom_button_text', 'custom_button_href']);
+        return ['content', 'custom_button_text', 'custom_button_href'];
     }
 }
