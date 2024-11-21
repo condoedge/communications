@@ -26,7 +26,7 @@ class EmailCommunicationHandler extends AbstractCommunicationHandler
     public function notifyCommunicables(array $communicables, $params = [])
     {
         $layout = $params['layout'] ?? DefaultLayoutEmailCommunicable::class;
-        
+
         $communicables = collect($communicables)->map(function($communicable) use ($layout, $params) {
             $params = ContextEnhancer::setCommunicable($communicable)->getEnhancedContext($params);
 

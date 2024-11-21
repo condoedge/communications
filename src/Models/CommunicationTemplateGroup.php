@@ -64,7 +64,8 @@ class CommunicationTemplateGroup extends Model
         $communicationTemplate->save();
 
         collect(CommunicationType::cases())->each(function ($type) use ($communicationTemplate, $trigger) {
-            $sluggedName = \Str::slug($trigger::class);
+            $className = substr(strrchr($trigger, '\\'), 1);
+            $sluggedName = \Str::slug(\Str::snake($className));
             $viewName = "stubs/communication-templates/default-{$sluggedName}-{$type->value}";
 
             $content = collect(array_keys(config('kompo.locales')))->mapWithKeys(function($locale) use ($viewName) { 

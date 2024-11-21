@@ -115,7 +115,6 @@ class MessageContentReplacer
 
         if ($exists !== false) {
             $handler = $this->handlers[$id] ?? null;
-
             if ($handler) {
                 $args = $this->getHandlerArguments($handler, $type);
                 $parsedText = $this->replaceMention($parsedText, $id, $this->handlerCalling($handler, $args));
@@ -178,11 +177,12 @@ class MessageContentReplacer
         $parts = explode('.', $id);
         $modelName = $parts[0];
         $attribute = $parts[1] ?? null;
+        $replaceWith = '';
 
         if ($attribute) {
             if (method_exists($this->context[$modelName], $attribute)) {
                 $replaceWith = $this->context[$modelName]->$attribute();
-            } else {
+            } elseif (property_exists($this->context[$modelName] ?? new \stdClass, $attribute)) {
                 $replaceWith = $this->context[$modelName]?->$attribute;
             }
         } else {
@@ -212,6 +212,10 @@ class MessageContentReplacer
     public function getVarHtml($varId)
 	{
         $var = Variables::searchVarById($varId);
+
+        if(!$var) {
+            return '';
+        }
 
 		return '<span class="mention" data-mention="' . $varId . '">' . $var[1] . '</span>';
 	}

@@ -52,8 +52,8 @@ class NotificationTemplate extends Model
                     'team_id' => $teamId,
                     'notification_template_id' => $this->id,
                     // TODO We need to see if this is needed in this new version
-                    // 'about_id' => $params['about_id'] ?? null,
-                    // 'about_type' => $params['about_type'] ?? null,
+                    'about_id' => $params['about_id'] ?? null,
+                    'about_type' => $params['about_type'] ?? null,
                     'custom_button_text' => ContentReplacer::setText($this->custom_button_text)->replace(CommunicationType::DATABASE),
                     'custom_button_href' => ContentReplacer::setText($this->custom_button_href)->replace(CommunicationType::DATABASE),
                     'has_reminder_button' => $this->has_reminder_button,
