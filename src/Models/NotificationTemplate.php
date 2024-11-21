@@ -11,6 +11,11 @@ class NotificationTemplate extends Model
 {
     use \Kompo\Database\HasTranslations;
 
+    public function communication()
+    {
+        return $this->belongsTo(CommunicationTemplate::class);
+    }
+
     protected $translatable = [
         'custom_button_text',
         'custom_button_href',
@@ -33,7 +38,6 @@ class NotificationTemplate extends Model
      */
     public function sendNotification(array $communicables, $params = [])
     {
-        // Send SMS
         $notifications = [];
 
         foreach ($communicables as $communicable) {
@@ -54,6 +58,7 @@ class NotificationTemplate extends Model
                     // TODO We need to see if this is needed in this new version
                     'about_id' => $params['about_id'] ?? null,
                     'about_type' => $params['about_type'] ?? null,
+                    'custom_message' => ContentReplacer::setText($this->communication->content)->replace(CommunicationType::DATABASE),
                     'custom_button_text' => ContentReplacer::setText($this->custom_button_text)->replace(CommunicationType::DATABASE),
                     'custom_button_href' => ContentReplacer::setText($this->custom_button_href)->replace(CommunicationType::DATABASE),
                     'has_reminder_button' => $this->has_reminder_button,
@@ -62,6 +67,6 @@ class NotificationTemplate extends Model
             }
         }
 
-        Notification::insert($notifications);
+        Notification::insert($notifications);    
     }
 }

@@ -20,15 +20,10 @@ class DefaultVarLink
      * 
      * @return \Kompo\Link
      */
-    public function getElementParsed()
+    public function getElementParsed($uniqueId)
     {
-        return $this->link($this->name, $this->id, $this->classes);
+        return _Link($this->name)->attr(['data-type' => $this->id])
+            ->class($this->classes . ' hover:bg-blue-50 text-black bg-white rounded-lg px-3 py-2 varsLink')
+            ->emitRoot('insertVariable', ['type' => $this->id, 'label' => __($this->name), 'uniqueid' => $uniqueId]);
     }
-
-    protected function link($label, $type, $class = null)
-	{
-		return _Link($label)->attr(['data-type' => $type])
-            ->class($class . ' hover:bg-blue-50 text-black bg-white rounded-lg px-3 py-2 varsLink')
-            ->emitRoot('insertVariable', ['type' => $type, 'label' => __($label)]);
-	}
 }

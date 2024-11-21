@@ -33,5 +33,5 @@ interface CommunicableEvent
      * 
      * @return array|null
      */
-    static function validVariablesIds(): ?array;
+    static function validVariablesIds($specificField = null): ?array;
 }

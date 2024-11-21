@@ -1,7 +1,7 @@
 <template>
     <div>
         <div>
-            <div class="">
+            <div class="py-2">
                 <vl-form-field v-bind="$_wrapperAttributes">
                     <vlLocaleTabs :locales="locales" :activeLocale="activeLocale" @changeLocale="changeTab" />
                     <ckeditor class="vlFormControl" ref="content" v-model="currentTranslation" v-bind="$_attributes"
@@ -9,7 +9,7 @@
                 </vl-form-field>
             </div>
         </div>
-        <div class="py-1">
+        <div class="py-3">
             <div class="vlFormLabel" v-if="$_config('titleVariables')">
                 {{ $_config("titleVariables") }}
             </div>
@@ -69,7 +69,11 @@ export default {
     created() {
         this.allVariables = this.$_config("variables");
 
-        this.$_vlOn("insertVariable", (payload) => this.insertVariable(payload));
+        this.$_vlOn("insertVariable", (payload) => {
+            if (!payload['uniqueid'] || this.$_config('uniqueId') == payload['uniqueid']) {
+                this.insertVariable(payload);
+            }
+        });
     },
 };
 </script>

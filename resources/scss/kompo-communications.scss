@@ -1,3 +1,7 @@
 .full-width-submenu > .vlDropdownMenu {
     width: 100% !important;
 }
+
+.ck-content-h-10.vlTranslatableEditor .ck-editor__editable_inline {
+    min-height: unset !important;
+}

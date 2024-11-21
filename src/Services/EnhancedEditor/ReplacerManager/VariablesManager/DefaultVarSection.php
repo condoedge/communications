@@ -10,6 +10,8 @@ class DefaultVarSection
      * @var DefaultVarLink[]
      */
     protected $links = [];
+
+    protected $uniqueId;
     
     public function __construct(string $title, $links, string $classes = 'bg-white border border-level1 py-2 px-3 rounded-xl text-level1 min-w-[200px] full-width-submenu')
     {
@@ -23,10 +25,10 @@ class DefaultVarSection
      * Convert the section to a Dropdown element to be able to be used in the editor
      * @return mixed
      */
-    public function getElementsParsed()
+    public function getElementsParsed($uniqueId)
     {
-        return _Dropdown($this->title)->submenu(collect($this->links)->map(function($link){
-            return $link->getElementParsed();
+        return _Dropdown($this->title)->submenu(collect($this->links)->map(function($link) use($uniqueId){
+            return $link->getElementParsed($uniqueId);
         }))->alignUpRight()->class('varsDropdown')->class($this->classes);
     }
 

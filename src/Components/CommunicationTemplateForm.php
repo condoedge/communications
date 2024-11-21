@@ -11,7 +11,7 @@ class CommunicationTemplateForm extends Modal
     public $model = CommunicationTemplateGroup::class;
 
     public $style = 'max-height: 95vh;';
-    public $class = 'overflow-y-auto mini-scroll';
+    public $class = 'overflow-y-auto mini-scroll max-w-2xl';
 
     public $refreshAfterSubmit = true;
     public $noHeaderButtons = true;

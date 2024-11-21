@@ -27,7 +27,7 @@ class ManualTrigger implements CommunicableEvent
         return __('communications.manual-trigger');
     }
 
-    public static function validVariablesIds(): ?array
+    public static function validVariablesIds($specificField = null): ?array
     {
         return null;
     }

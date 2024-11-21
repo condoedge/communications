@@ -8,10 +8,13 @@ use Kompo\TranslatableEditor;
 class EnhancedEditor extends TranslatableEditor
 {
     public $vueComponent = 'CKEditorWithVars';
+    protected $uniqueId;
 
 	public function initialize($label)
 	{
         parent::initialize($label);
+
+        $this->uniqueId(); 
 
 		$this->class('vlTranslatableEditor relative comms-editor !mb-0');
 
@@ -20,11 +23,27 @@ class EnhancedEditor extends TranslatableEditor
 
     public function withoutTopBar()
     {
-        return $this->class('[&>.vlInputWrapper>.ck-editor>.ck-editor__top]:hidden');
+        return $this->toolbar([])->class('[&>.vlInputWrapper>.ck-editor>.ck-editor__top]:hidden');
+    }
+
+    public function baseInputHeight()
+    {
+        return $this->class('ck-content-h-10');
+    }
+
+    public function uniqueId()
+    {
+        $this->uniqueId = uniqid();
+
+        return $this->config([
+            'uniqueId' => $this->uniqueId,
+        ]);
     }
 
     public function setVariablesSection($section = 'default')
     {
+        Variables::setUniqueId($this->uniqueId);
+
         $variables = Variables::getVariables($section);
 
         return $this->config([

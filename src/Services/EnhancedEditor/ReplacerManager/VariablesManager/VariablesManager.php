@@ -8,6 +8,8 @@ class VariablesManager
     protected $rawVariables = [];
     protected $sectionParser = DefaultVarSection::class;
 
+    protected $uniqueId;
+
     // SETTERS
 
     /**
@@ -41,7 +43,7 @@ class VariablesManager
     {
         $this->rawVariables[$group] = $varsEls;
 
-        $this->variables[$group] = $this->automaticVarParsing($varsEls);
+        $this->variables[$group] = $varsEls;
 
         return $this;
     }
@@ -102,7 +104,14 @@ class VariablesManager
      */
     public function getVariables($section = 'default')
     {
-        return $this->variables[$section];
+        return $this->automaticVarParsing($this->variables[$section]);
+    }
+
+    public function setUniqueId($uniqueId)
+    {
+        $this->uniqueId = $uniqueId;
+
+        return $this;
     }
 
     /**
@@ -113,7 +122,7 @@ class VariablesManager
     public function automaticVarParsing(array $vars) 
     {
         return collect($vars)->map(callback: function($vars, $title){
-            return $this->sectionParser::fromArray($title, $vars)->getElementsParsed();
+            return $this->sectionParser::fromArray($title, $vars)->getElementsParsed($this->uniqueId);
         })->toArray();
     }
 }

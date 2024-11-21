@@ -32,11 +32,18 @@ class DatabaseCommunicationHandler extends AbstractCommunicationHandler
     {
         $notificationTemplate = NotificationTemplate::forCommunication($this->communication->id)->first();
 
-        return [
-            _Rows(parent::formInputs($trigger)),
+        $attrs = collect($this->communication->getAttributes())->merge($notificationTemplate->getAttributes())->toArray();
 
-            _Translatable('button text')->name('custom_button_text', false)->default($notificationTemplate?->custom_button_text ?: []),
-            _Translatable('button href')->name('custom_button_href', false)->default($notificationTemplate?->custom_button_href ?: []),
+        return [
+            _Rows(
+                _EnhancedEditor('Content')->name('content', false)->default(json_decode($attrs['content'] ?? '{}'))
+                    ->filterVarsToThisIds($trigger::validVariablesIds()),
+            ),
+
+            _EnhancedEditor('translate.button-text')->name('custom_button_text', false)->default(json_decode($attrs['custom_button_text'] ?? '{}'))
+                ->filterVarsToThisIds($trigger::validVariablesIds('custom_button_text'))->toolbar([])->baseInputHeight(),
+            _EnhancedEditor('translate.button-route')->name('custom_button_href', false)->default(json_decode($attrs['custom_button_href'] ?? '{}'))
+                ->filterVarsToThisIds($trigger::validVariablesIds('custom_button_href'))->toolbar([])->baseInputHeight(),
             _Checkbox('has reminder button')->name('has_reminder_button', false)->default($notificationTemplate?->has_reminder_button),
         ];
     }
