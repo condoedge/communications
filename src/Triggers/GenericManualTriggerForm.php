@@ -8,7 +8,7 @@ use Kompo\Modal;
 
 class GenericManualTriggerForm extends Modal
 {
-    protected $_Title = 'translate.send-manual-communication';
+    protected $_Title = 'communications.send-manual-communication';
 
     protected $communicationId;
 
@@ -33,17 +33,17 @@ class GenericManualTriggerForm extends Modal
     public function body()
     {
         return _Rows(
-            _Select('translate.select-communication')->name('communication_id')
+            _Select('communications.select-communication')->name('communication_id')
                 ->searchOptions(0, 'searchManualCommunications', 'retrieveCommunication')
                 ->default($this->communicationId),
 
-            _Select('translate.select-communicable-type')->name('communicable_model')
+            _Select('communications.select-communicable-type')->name('communicable_model')
                 ->selfGet('selectCommunicables')->inPanel('communicables-select')
                 ->options($this->communicables()),
 
             _Panel()->id('communicables-select'),
 
-            _SubmitButton('translate.send')->alert('translate.sent')->closeModal(),
+            _SubmitButton('communications.send')->alert('communications.sent')->closeModal(),
         );
     }
 

@@ -24,7 +24,7 @@ class ManualTrigger implements CommunicableEvent
 
     public static function getName(): string
     {
-        return __('translate.manual-trigger');
+        return __('communications.manual-trigger');
     }
 
     public static function validVariablesIds(): ?array

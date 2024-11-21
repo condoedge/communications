@@ -11,7 +11,7 @@ class CommunicationSendingsList extends Table
     public function top()
     {
         return _FlexEnd(
-            _Select()->name('status')->placeholder('translate.filter-by-status')
+            _Select()->name('status')->placeholder('communications.filter-by-status')
                 ->options(CommunicationSendingStatus::optionsWithLabels())
                 ->filter(),
         );
@@ -26,11 +26,11 @@ class CommunicationSendingsList extends Table
     public function headers()
     {
         return [
-            _Th('translate.sent-at'),
-            _Th('translate.communication-template'),
-            _Th('translate.communication-event'),
-            _Th('translate.via'),
-            _Th('translate.status'),
+            _Th('communications.sent-at'),
+            _Th('communications.communication-template'),
+            _Th('communications.communication-event'),
+            _Th('communications.via'),
+            _Th('communications.status'),
         ];
     }
 
