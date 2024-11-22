@@ -1,6 +1,8 @@
 {
 	"communications.a-random-triggerer": "Un déclencheur aléatoire",
 	"communications.all-templates-are-set": "Tous les modèles sont définis",
+	"communications.button-label": "Libellé du bouton",
+	"communications.button-route": "Route du bouton",
 	"communications.check-templates-triggers": "Vérifier les déclencheurs de modèle",
 	"communications.communication-database": "Base de données",
 	"communications.communication-email": "Courriel",
@@ -13,6 +15,7 @@
 	"communications.everyone": "À tous",
 	"communications.failed": "Échouée",
 	"communications.filter-by-status": "Filtrer par statut",
+	"communications.has-reminder-button": "A un bouton de rappel",
 	"communications.manual-trigger": "Déclencheur manuel",
 	"communications.number-of-ways": "Nombre de façons",
 	"communications.pending": "En attente",
