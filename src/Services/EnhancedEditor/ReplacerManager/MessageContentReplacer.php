@@ -182,7 +182,7 @@ class MessageContentReplacer
         if ($attribute) {
             if (method_exists($this->context[$modelName], $attribute)) {
                 $replaceWith = $this->context[$modelName]->$attribute();
-            } elseif (property_exists($this->context[$modelName] ?? new \stdClass, $attribute)) {
+            } elseif (property_exists($this->context[$modelName] ?? new \stdClass, $attribute) || method_exists($this->context[$modelName] ?? new \stdClass, 'getAttribute')) {
                 $replaceWith = $this->context[$modelName]?->$attribute;
             }
         } else {
@@ -195,7 +195,7 @@ class MessageContentReplacer
             $replaceWith = $replaceWith(...$args);
         }
 
-        return $this->replaceMention($this->text, $id, $replaceWith);
+        return $this->replaceMention($parsedText, $id, $replaceWith);
     }
 
 	// MENTION PARSERS
