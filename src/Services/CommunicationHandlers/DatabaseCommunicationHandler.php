@@ -40,11 +40,11 @@ class DatabaseCommunicationHandler extends AbstractCommunicationHandler
                     ->filterVarsToThisIds($trigger::validVariablesIds()),
             ),
 
-            _EnhancedEditor('translate.button-text')->name('custom_button_text', false)->default(json_decode($attrs['custom_button_text'] ?? '{}'))
+            _EnhancedEditor('communications.button-label')->name('custom_button_text', false)->default(json_decode($attrs['custom_button_text'] ?? '{}'))
                 ->filterVarsToThisIds($trigger::validVariablesIds('custom_button_text'))->toolbar([])->baseInputHeight(),
-            _EnhancedEditor('translate.button-route')->name('custom_button_href', false)->default(json_decode($attrs['custom_button_href'] ?? '{}'))
+            _EnhancedEditor('communications.button-route')->name('custom_button_href', false)->default(json_decode($attrs['custom_button_href'] ?? '{}'))
                 ->filterVarsToThisIds($trigger::validVariablesIds('custom_button_href'))->toolbar([])->baseInputHeight(),
-            _Checkbox('has reminder button')->name('has_reminder_button', false)->default($notificationTemplate?->has_reminder_button),
+            _Checkbox('communications.has-reminder-button')->name('has_reminder_button', false)->default($notificationTemplate?->has_reminder_button),
         ];
     }
 
