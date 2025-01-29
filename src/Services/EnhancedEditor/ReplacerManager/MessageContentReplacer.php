@@ -217,7 +217,7 @@ class MessageContentReplacer
             return '';
         }
 
-		return '<span class="mention" data-mention="' . $varId . '">' . $var[1] . '</span>';
+		return '<span class="mention" data-mention="' . $varId . '">' . __($var[1]) . '</span>';
 	}
 
     /**

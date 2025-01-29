@@ -32,7 +32,7 @@ class DatabaseCommunicationHandler extends AbstractCommunicationHandler
     {
         $notificationTemplate = NotificationTemplate::forCommunication($this->communication->id)->first();
 
-        $attrs = collect($this->communication->getAttributes())->merge($notificationTemplate->getAttributes())->toArray();
+        $attrs = collect($this->communication->getAttributes())->merge($notificationTemplate?->getAttributes())->toArray();
 
         return [
             _Rows(
