@@ -2,6 +2,7 @@
 
 namespace Condoedge\Communications\Models;
 
+use Illuminate\Support\Collection;
 use Kompo\Auth\Models\Model;
 
 class CommunicationSending extends Model
@@ -17,7 +18,7 @@ class CommunicationSending extends Model
     }
 
     // ACTIONS
-    public static function createOneForCommunicationTemplate(CommunicationTemplate $communicationTemplate, array $communicables, array $params = [])
+    public static function createOneForCommunicationTemplate(CommunicationTemplate $communicationTemplate, array|Collection $communicables, array $params = [])
     {
         $communicationSending = new static;
         $communicationSending->communication_template_id = $communicationTemplate->id;

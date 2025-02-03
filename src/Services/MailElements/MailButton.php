@@ -11,7 +11,7 @@ class MailButton extends MailElement
     {
         $this->internalElement = $label;
 
-        $this->style = 'border-radius: 10px; padding: 0.15rem; background-color: #006241; color: white; text-decoration: none; display: inline-block;';
+        $this->style = 'border-radius: 10px; padding: 0.35rem 1rem; background-color: #006241; color: white; text-decoration: none; display: inline-block;';
     }
 
     public function htmlStructure()
