@@ -13,7 +13,7 @@
         "kompo/kompo": "^3.0",
         "kompo/auth": ">=0.4.88",
         "laravel/vonage-notification-channel": "^3.3",
-        "condoedge/utils": "^0.0.6"
+        "condoedge/utils": "^0.1.1"
     },
     "extra": {
         "laravel": {
