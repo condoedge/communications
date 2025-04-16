@@ -4,7 +4,7 @@ namespace Condoedge\Communications\Components;
 
 use Condoedge\Communications\Models\CommunicationSending;
 use Condoedge\Communications\Models\CommunicationSendingStatus;
-use Kompo\Auth\Common\Table;
+use Condoedge\Utils\Kompo\Common\Table;
 
 class CommunicationSendingsList extends Table
 {

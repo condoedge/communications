@@ -2,7 +2,7 @@
 
 namespace Condoedge\Communications\Models;
 
-use Kompo\Auth\Models\Model;
+use Condoedge\Utils\Models\Model;
 use Illuminate\Database\Eloquent\Collection;
 
 class CommunicationTemplateGroup extends Model

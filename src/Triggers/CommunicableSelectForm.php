@@ -2,7 +2,7 @@
 
 namespace Condoedge\Communications\Triggers;
 
-use Kompo\Auth\Common\Form;
+use Condoedge\Utils\Kompo\Common\Form;
 
 class CommunicableSelectForm extends Form
 {

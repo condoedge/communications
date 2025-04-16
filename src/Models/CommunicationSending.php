@@ -3,7 +3,7 @@
 namespace Condoedge\Communications\Models;
 
 use Illuminate\Support\Collection;
-use Kompo\Auth\Models\Model;
+use Condoedge\Utils\Models\Model;
 
 class CommunicationSending extends Model
 {

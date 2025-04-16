@@ -4,7 +4,7 @@ namespace Condoedge\Communications\Components;
 
 use Condoedge\Communications\Models\CommunicationTemplateGroup;
 use Condoedge\Communications\Models\CommunicationType;
-use Kompo\Auth\Common\Modal;
+use Condoedge\Utils\Kompo\Common\Modal;
 
 class CommunicationTemplateForm extends Modal
 {

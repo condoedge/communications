@@ -9,7 +9,7 @@ use Condoedge\Communications\Services\CommunicationHandlers\DatabaseCommunicatio
 
 enum CommunicationType: int 
 {
-    use \Kompo\Auth\Models\Traits\EnumKompo;
+    use \Condoedge\Utils\Models\Traits\EnumKompo;
 
     case EMAIL = 1;
     case SMS = 2;

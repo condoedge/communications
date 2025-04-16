@@ -5,7 +5,7 @@ namespace Condoedge\Communications\Models;
 use Condoedge\Communications\Facades\ContentReplacer;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Log;
-use Kompo\Auth\Models\Model;
+use Condoedge\Utils\Models\Model;
 
 class CommunicationTemplate extends Model
 {

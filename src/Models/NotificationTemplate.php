@@ -4,6 +4,9 @@ namespace Condoedge\Communications\Models;
 
 use Condoedge\Communications\Facades\ContentReplacer;
 use Illuminate\Database\Eloquent\Model;
+
+// Just using kompo/auth for this, we should see how to decouple this
+// Using facade utils to abstract and put those one in the config
 use Kompo\Auth\Models\Monitoring\Notification;
 use Kompo\Auth\Models\Monitoring\NotificationTypeEnum;
 

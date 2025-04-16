@@ -4,7 +4,7 @@ namespace Condoedge\Communications\Models;
 
 enum CommunicationSendingStatus: int
 {
-    use \Kompo\Auth\Models\Traits\EnumKompo;
+    use \Condoedge\Utils\Models\Traits\EnumKompo;
 
     case PENDING = 1;
     case SENT = 2;

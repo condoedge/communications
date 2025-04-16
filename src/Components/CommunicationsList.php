@@ -2,7 +2,7 @@
 
 namespace Condoedge\Communications\Components;
 
-use Kompo\Auth\Common\Table;
+use Condoedge\Utils\Kompo\Common\Table;
 use Condoedge\Communications\Models\CommunicationTemplateGroup;
 use Condoedge\Communications\Components\CommunicationTemplateForm;
 
