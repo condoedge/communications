@@ -3,7 +3,7 @@
 namespace Condoedge\Communications\Models;
 
 use Condoedge\Utils\Models\Model;
-use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection;
 
 class CommunicationTemplateGroup extends Model
 {

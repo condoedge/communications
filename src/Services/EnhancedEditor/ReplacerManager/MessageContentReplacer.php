@@ -93,9 +93,17 @@ class MessageContentReplacer
     {
         $parsedText = $this->text;
 
-        collect(Variables::getFlatRawVariables())->each(function ($vars) use ($type, &$parsedText) {
-            $this->processVariable($vars, $type, parsedText: $parsedText);
-        });
+        try {
+            collect(Variables::getFlatRawVariables())->each(function ($vars) use ($type, &$parsedText) {
+                $this->processVariable($vars, $type, parsedText: $parsedText);
+            });
+        } catch (\Exception $e) {
+            // Log the error or handle it as needed
+            \Log::error("Error processing variables in MessageContentReplacer: " . $e->getMessage());
+
+            throw new \RuntimeException("Failed to process variables in the text.");
+        }
+
 
         return $parsedText;
     }

@@ -3,7 +3,7 @@
 namespace Condoedge\Communications\Models;
 
 use Condoedge\Communications\Facades\ContentReplacer;
-use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Condoedge\Utils\Models\Model;
 

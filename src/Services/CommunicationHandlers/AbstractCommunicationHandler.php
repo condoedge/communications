@@ -4,7 +4,7 @@ namespace Condoedge\Communications\Services\CommunicationHandlers;
 
 use Condoedge\Communications\Models\CommunicationTemplate;
 use Condoedge\Communications\Models\CommunicationType;
-use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
 abstract class AbstractCommunicationHandler

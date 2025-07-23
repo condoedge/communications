@@ -66,9 +66,9 @@ class EnhancedEditor extends TranslatableEditor
         $vars = Variables::getRawVariables($section);
 
         // Filtering the variables to only the ones that are in the $variablesIds array
-        $filtered = collect($vars)->map(function($group) use ($variablesIds) {
-            return collect($group)->filter(function($var) use ($variablesIds) {
-                return in_array($var[0], $variablesIds);
+        $filtered = collect($vars)->map(function($group, $groupKey) use ($variablesIds) {
+            return collect($group)->filter(function($var) use ($variablesIds, $groupKey) {
+                return in_array($var[0], $variablesIds) || in_array($groupKey . '.*', $variablesIds);
             })->all();
         })->filter(fn($group) => count($group))->all();
 
