@@ -4,6 +4,7 @@ namespace Condoedge\Communications\Services\EnhancedEditor\ReplacerManager;
 
 use Condoedge\Communications\Facades\Variables;
 use Condoedge\Communications\Models\CommunicationType;
+use Illuminate\Support\Facades\Log;
 use ReflectionFunction;
 
 /**
@@ -186,6 +187,12 @@ class MessageContentReplacer
         $modelName = $parts[0];
         $attribute = $parts[1] ?? null;
         $replaceWith = '';
+
+        if (!isset($this->context[$modelName])) {
+            Log::warning("Model $modelName not found in context for automatic replacement of variable $id.");
+
+            return $parsedText; // If the model is not in the context, skip replacement
+        }
 
         if ($attribute) {
             if (method_exists($this->context[$modelName], $attribute)) {
