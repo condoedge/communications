@@ -7,6 +7,7 @@ use Condoedge\Communications\Facades\ContextEnhancer;
 use Condoedge\Communications\Models\CommunicationTemplateGroup;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Support\Facades\Log;
 
 class CommunicationTriggeredListener implements ShouldQueue
 {
@@ -27,7 +28,8 @@ class CommunicationTriggeredListener implements ShouldQueue
         $groups = CommunicationTemplateGroup::forTrigger($event::class)->hasValid()
             ->when(method_exists($event, 'getSpecificCommunicationsIds'), fn($q) => $q->whereIn('id', $event->getSpecificCommunicationsIds()))
             ->get();
-
+        Log::info('Communication groups retrieved', ['groups' => $groups]);
+        
         $groups->each->notify($event->getCommunicables(), null, $params);
     }
 }
