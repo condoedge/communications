@@ -21,6 +21,8 @@ class CommunicationTriggeredListener implements ShouldQueue
      */
     public function handle(CommunicableEvent $event)
     {
+        Log::info('Handling communication triggered event', ['event' => get_class($event)]);
+
         $params = ContextEnhancer::setContext(array_merge($event->getParams(), [
             'trigger' => $event::class,
         ]))->getEnhancedContext();
@@ -29,7 +31,7 @@ class CommunicationTriggeredListener implements ShouldQueue
             ->when(method_exists($event, 'getSpecificCommunicationsIds'), fn($q) => $q->whereIn('id', $event->getSpecificCommunicationsIds()))
             ->get();
         Log::info('Communication groups retrieved', ['groups' => $groups]);
-        
+
         $groups->each->notify($event->getCommunicables(), null, $params);
     }
 }
