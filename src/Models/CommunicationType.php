@@ -22,7 +22,7 @@ enum CommunicationType: int
         return match ($this) {
             self::EMAIL => __('communications.communication-email'),
             self::SMS => __('communications.communication-sms'),
-            self::TASK => __('translate.communications.communication-task'),
+            self::TASK => __('communications.communication-task'),
             self::DATABASE => __('communications.communication-dashboard'),
         };
     }

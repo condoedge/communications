@@ -9,6 +9,7 @@
 	"communications.communication-email": "Courriel",
 	"communications.communication-event": "Événement",
 	"communications.communication-sms": "SMS",
+	"communications.communication-task": "Tâche",
 	"communications.communication-template": "Modèle",
 	"communications.communications": "Communications",
 	"communications.create-default-templates": "Créer un modèle par défaut",
