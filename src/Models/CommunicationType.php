@@ -6,6 +6,7 @@ use Condoedge\Communications\Services\CommunicationHandlers\AbstractCommunicatio
 use Condoedge\Communications\Services\CommunicationHandlers\SmsCommunicationHandler;
 use Condoedge\Communications\Services\CommunicationHandlers\EmailCommunicationHandler;
 use Condoedge\Communications\Services\CommunicationHandlers\DatabaseCommunicationHandler;
+use Condoedge\Communications\Services\CommunicationHandlers\TaskCommunicationHandler;
 
 enum CommunicationType: int 
 {
@@ -14,6 +15,7 @@ enum CommunicationType: int
     case EMAIL = 1;
     case SMS = 2;
     case DATABASE = 3;
+    case TASK = 4;
 
     public function label()
     {
@@ -21,6 +23,7 @@ enum CommunicationType: int
             self::EMAIL => __('communications.communication-email'),
             self::SMS => __('communications.communication-sms'),
             self::DATABASE => __('communications.communication-database'),
+            self::TASK => __('translate.communications.communication-task'),
         };
     }
 
@@ -35,6 +38,7 @@ enum CommunicationType: int
             self::EMAIL => new EmailCommunicationHandler($communication, $this),
             self::SMS => new SmsCommunicationHandler($communication, $this),
             self::DATABASE => new DatabaseCommunicationHandler($communication, $this),
+            self::TASK => new TaskCommunicationHandler($communication, $this),
         };
     }
 }

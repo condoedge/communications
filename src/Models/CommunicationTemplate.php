@@ -44,6 +44,13 @@ class CommunicationTemplate extends Model
         return $this->type->handler($this);
     }
 
+    public function getParsedTitle($params = [])
+    {
+        return ContentReplacer::setText($this->subject)
+            ->injectContext($params)
+            ->replace($this->type);
+    }
+
     public function getParsedContent($params = [])
     {
         return ContentReplacer::setText($this->content)
