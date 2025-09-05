@@ -28,8 +28,11 @@ class CommunicationTemplateForm extends Modal
         return _Rows(
             _Input('Name')->name('title'),
 
-            _Select('trigger')->options(collect(CommunicationTemplateGroup::getTriggers())->mapWithKeys(fn($trigger) => [$trigger => $trigger::getName()]))
-                ->name('trigger'),
+            _Select('trigger')->name('trigger')
+                ->options(collect(CommunicationTemplateGroup::getTriggers())->mapWithKeys(fn($trigger) => [$trigger => $trigger::getName()]))
+                ->selfPost('saveAndGetNewForm')
+                ->inPanel('communication-type-form')
+                ->panelLoading('communication-type-form'),
 
             !$this->model->id ? _Rows(
                 _Html('fill the main data to complete the other messages')->class('text-center mb-4'),
@@ -53,9 +56,15 @@ class CommunicationTemplateForm extends Modal
         );
     }
 
-    public function saveAndGetNewForm($communicationType)
+    public function saveAndGetNewForm()
     {
-        $this->savePreviousCommunication(request('previous_communication_type'));
+        $communicationType = request('communication_type');
+
+        if (request('previous_communication_type')) {
+            $this->savePreviousCommunication(request('previous_communication_type'));
+        } else if (!$communicationType) { // If there is no previous communication type, we are probably coming from the trigger select, so we set a default
+            $communicationType = CommunicationType::EMAIL->value;
+        }
 
         if (!$communicationType) {
             return _Html('you must select one to see the editor')->class('text-center');
@@ -65,7 +74,7 @@ class CommunicationTemplateForm extends Modal
 
         $communicationType = CommunicationType::from($communicationType);
 
-        return $communicationType->handler($oldCommunication)->getForm($this->model->trigger);
+        return $communicationType->handler($oldCommunication)->getForm(request('trigger') ?? $this->model->trigger);
     }
 
     protected function savePreviousCommunication($communicationType)

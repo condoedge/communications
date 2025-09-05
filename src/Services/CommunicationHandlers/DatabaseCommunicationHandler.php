@@ -2,6 +2,7 @@
 
 namespace Condoedge\Communications\Services\CommunicationHandlers;
 
+use Condoedge\Communications\EventsHandling\Contracts\DatabaseCommunicableEvent;
 use Condoedge\Communications\Models\NotificationTemplate;
 use Condoedge\Communications\Services\CommunicationHandlers\AbstractCommunicationHandler;
 use Condoedge\Communications\Services\CommunicationHandlers\Contracts\DatabaseCommunicable;
@@ -12,6 +13,11 @@ class DatabaseCommunicationHandler extends AbstractCommunicationHandler
     public function communicableInterface()
     {
         return DatabaseCommunicable::class;
+    }
+
+    public function communicableEventInterface()
+    {
+        return DatabaseCommunicableEvent::class;
     }
 
     // NOTIFICATION
@@ -42,8 +48,10 @@ class DatabaseCommunicationHandler extends AbstractCommunicationHandler
 
             _EnhancedEditor('communications.button-label')->name('custom_button_text', false)->default(json_decode($attrs['custom_button_text'] ?? '{}'))
                 ->filterVarsToThisIds($trigger::validVariablesIds('custom_button_text'))->toolbar([])->baseInputHeight(),
-            _EnhancedEditor('communications.button-route')->name('custom_button_href', false)->default(json_decode($attrs['custom_button_href'] ?? '{}'))
-                ->filterVarsToThisIds($trigger::validVariablesIds('custom_button_href'))->toolbar([])->baseInputHeight(),
+
+            _Select('communications.button-route')->options($trigger::getValidRoutes())
+                ->name('custom_button_href', false)->default($attrs['custom_button_href']),
+            
             _Checkbox('communications.has-reminder-button')->name('has_reminder_button', false)->default($notificationTemplate?->has_reminder_button),
         ];
     }

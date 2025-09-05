@@ -2,6 +2,7 @@
 
 namespace Condoedge\Communications\Services\CommunicationHandlers;
 
+use Condoedge\Communications\EventsHandling\Contracts\CommunicableEvent;
 use Condoedge\Communications\Models\CommunicationTemplate;
 use Condoedge\Communications\Models\CommunicationType;
 use Illuminate\Support\Collection;
@@ -23,6 +24,11 @@ abstract class AbstractCommunicationHandler
      * @return \Condoedge\Communications\Services\CommunicationHandlers\Contracts\Communicable
      */
     abstract public function communicableInterface();
+
+    public function communicableEventInterface()
+    {
+        return CommunicableEvent::class;
+    }
 
     // NOTIFICATION
 
@@ -101,6 +107,10 @@ abstract class AbstractCommunicationHandler
      */
     final public function getForm($trigger = null)
     {
+        if ($trigger && !$this->typeIsValidToTrigger($trigger)) {
+            return _Html('The selected communication type is not valid for this trigger.')->class('text-center text-red-500');
+        }
+
         return _Rows(
             _Rows($this->formInputs($trigger)),
 
@@ -109,6 +119,13 @@ abstract class AbstractCommunicationHandler
     }
 
     // VALIDATION
+
+    protected function typeIsValidToTrigger($trigger)
+    {
+        $implements = class_implements($trigger);
+
+        return in_array($this->communicableEventInterface(), $implements);
+    }
 
     /**
      * Check if the communication is valid to save. It should also return true if the communication has a valid data to be a draft 

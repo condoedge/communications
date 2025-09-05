@@ -21,7 +21,6 @@ class NotificationTemplate extends Model
 
     protected $translatable = [
         'custom_button_text',
-        'custom_button_href',
     ];
 
     /**
