@@ -10,7 +10,7 @@ class CommunicationTemplateForm extends Modal
 {
     public $model = CommunicationTemplateGroup::class;
 
-    protected $_Title = 'translate.manage-communication';
+    protected $_Title = 'communications.manage-communication';
 
     public $style = 'max-height: 95vh;';
     public $class = 'overflow-y-auto mini-scroll max-w-2xl';
@@ -52,7 +52,7 @@ class CommunicationTemplateForm extends Modal
                 )->id(id: 'communication-type-form')->class('mb-6'),
             ),
 
-            _SubmitButton(!$this->model->id ? 'translate.next' : 'generic.save')->refresh('communications-list')
+            _SubmitButton(!$this->model->id ? 'communication.next' : 'generic.save')->refresh('communications-list')
                 ->when($this->model->id, fn($el) => $el->closeModal()),
         );
     }

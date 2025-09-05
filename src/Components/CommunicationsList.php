@@ -69,7 +69,7 @@ class CommunicationsList extends WhiteTable
 
                 return _Flex(
                     _Html($template->type->label())->class($isValid ? '' : 'text-warning')
-                        ->when(!$isValid, fn ($el) => $el->balloon('translate.draft.complete-all-info')),
+                        ->when(!$isValid, fn ($el) => $el->balloon('communications.complete-all-info')),
                     $last ? null : _Html(',')->class('mr-1'),
                 );
             }),

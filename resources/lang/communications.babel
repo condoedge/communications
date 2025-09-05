@@ -20,6 +20,26 @@
 				<name>communications</name>
 				<children>
 					<folder_node>
+						<name>communication</name>
+						<children>
+							<concept_node>
+								<name>next</name>
+								<description/>
+								<comment/>
+								<translations>
+									<translation>
+										<language>en-US</language>
+										<approved>false</approved>
+									</translation>
+									<translation>
+										<language>fr-FR</language>
+										<approved>false</approved>
+									</translation>
+								</translations>
+							</concept_node>
+						</children>
+					</folder_node>
+					<folder_node>
 						<name>communications</name>
 						<children>
 							<concept_node>
@@ -218,6 +238,21 @@
 								</translations>
 							</concept_node>
 							<concept_node>
+								<name>complete-all-info</name>
+								<description/>
+								<comment/>
+								<translations>
+									<translation>
+										<language>en-US</language>
+										<approved>false</approved>
+									</translation>
+									<translation>
+										<language>fr-FR</language>
+										<approved>false</approved>
+									</translation>
+								</translations>
+							</concept_node>
+							<concept_node>
 								<name>create-default-templates</name>
 								<description/>
 								<comment/>
@@ -294,6 +329,21 @@
 							</concept_node>
 							<concept_node>
 								<name>has-reminder-button</name>
+								<description/>
+								<comment/>
+								<translations>
+									<translation>
+										<language>en-US</language>
+										<approved>false</approved>
+									</translation>
+									<translation>
+										<language>fr-FR</language>
+										<approved>false</approved>
+									</translation>
+								</translations>
+							</concept_node>
+							<concept_node>
+								<name>manage-communication</name>
 								<description/>
 								<comment/>
 								<translations>
