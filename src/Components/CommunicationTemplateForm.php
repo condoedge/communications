@@ -10,6 +10,8 @@ class CommunicationTemplateForm extends Modal
 {
     public $model = CommunicationTemplateGroup::class;
 
+    protected $_Title = 'translate.manage-communication';
+
     public $style = 'max-height: 95vh;';
     public $class = 'overflow-y-auto mini-scroll max-w-2xl';
 
@@ -43,15 +45,14 @@ class CommunicationTemplateForm extends Modal
                     ->default(CommunicationType::EMAIL->value)
                     ->selfPost('saveAndGetNewForm')
                     ->withAllFormValues()
-                    ->inPanel('communication-type-form')
-                    ->panelLoading('communication-type-form'),
+                    ->inPanel('communication-type-form'),
 
                 _Panel(
                     CommunicationType::EMAIL->handler($this->model->findCommunicationTemplate(CommunicationType::EMAIL->value))->getForm($this->model->trigger),
                 )->id(id: 'communication-type-form')->class('mb-6'),
             ),
 
-            _SubmitButton(!$this->model->id ? 'next' : 'save')->refresh('communications-list')
+            _SubmitButton(!$this->model->id ? 'translate.next' : 'generic.save')->refresh('communications-list')
                 ->when($this->model->id, fn($el) => $el->closeModal()),
         );
     }
@@ -59,9 +60,11 @@ class CommunicationTemplateForm extends Modal
     public function saveAndGetNewForm()
     {
         $communicationType = request('communication_type');
+        $trigger = request('trigger');
+        $previousCommunicationType = request('previous_communication_type');
 
-        if (request('previous_communication_type')) {
-            $this->savePreviousCommunication(request('previous_communication_type'));
+        if ($previousCommunicationType) {
+            $this->savePreviousCommunication($previousCommunicationType);
         } else if (!$communicationType) { // If there is no previous communication type, we are probably coming from the trigger select, so we set a default
             $communicationType = CommunicationType::EMAIL->value;
         }
@@ -74,7 +77,7 @@ class CommunicationTemplateForm extends Modal
 
         $communicationType = CommunicationType::from($communicationType);
 
-        return $communicationType->handler($oldCommunication)->getForm(request('trigger') ?? $this->model->trigger);
+        return $communicationType->handler($oldCommunication)->getForm($trigger ?? $this->model->trigger);
     }
 
     protected function savePreviousCommunication($communicationType)

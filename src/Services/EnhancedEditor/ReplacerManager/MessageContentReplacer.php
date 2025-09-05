@@ -4,6 +4,8 @@ namespace Condoedge\Communications\Services\EnhancedEditor\ReplacerManager;
 
 use Condoedge\Communications\Facades\Variables;
 use Condoedge\Communications\Models\CommunicationType;
+use Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\Contracts\MentionParserInterface;
+use Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\Parsers\HtmlMentionParser;
 use Illuminate\Support\Facades\Log;
 use ReflectionFunction;
 
@@ -17,6 +19,10 @@ class MessageContentReplacer
 	protected $context = [];	
 	protected $handlers = [];
     protected $postProcessors = [];
+    protected $parsers = [];
+    protected $previousParsers = [];
+    protected $currentUsageCount = 0;
+    protected $maxUsages = 0;
 
 	protected string $text;
 
@@ -85,6 +91,42 @@ class MessageContentReplacer
         return $this;
     }
 
+    /**
+     * Set parsers, replacing existing ones
+     * @param array<MentionParserInterface> $parsers
+     * @param int $uses Number of uses before reverting to previous parsers (0 = permanent)
+     * @return static
+     */
+    public function setParsers(array $parsers, int $uses = 0)
+    {
+        if ($uses > 0) {
+            $this->previousParsers = $this->parsers;
+            $this->maxUsages = $uses;
+            $this->currentUsageCount = 0;
+        }
+        
+        $this->parsers = $parsers;
+        return $this;
+    }
+
+    /**
+     * Add parsers to existing ones
+     * @param array<MentionParserInterface> $parsers
+     * @param int $uses Number of uses before reverting (0 = permanent)
+     * @return static
+     */
+    public function addParsers(array $parsers, int $uses = 0)
+    {
+        if ($uses > 0) {
+            $this->previousParsers = $this->parsers;
+            $this->maxUsages = $uses;
+            $this->currentUsageCount = 0;
+        }
+
+        $this->parsers = array_merge($this->parsers, $parsers);
+        return $this;
+    }
+
 	/**
 	 * Convert the text to the parsed version. Replacing the mentions with the values extracted from the context using the handlers
 	 * @param CommunicationType $type
@@ -105,6 +147,7 @@ class MessageContentReplacer
             throw new \RuntimeException("Failed to process variables in the text.");
         }
 
+        $this->checkUsageLimit();
 
         return $parsedText;
     }
@@ -120,15 +163,18 @@ class MessageContentReplacer
     {
         [$id, $name, $classes, $automaticHandling] = $var;
 
-        $exists = strpos($parsedText, $this->getMentionHtml($id));
+        foreach ($this->parsers as $parser) {
+            $mentionFormat = $parser->getMentionFormat($id);
+            $exists = strpos($parsedText, $mentionFormat);
 
-        if ($exists !== false) {
-            $handler = $this->handlers[$id] ?? null;
-            if ($handler) {
-                $args = $this->getHandlerArguments($handler, $type);
-                $parsedText = $this->replaceMention($parsedText, $id, $this->handlerCalling($handler, $args));
-            } else if ($automaticHandling) {
-                $parsedText = $this->handleAutomaticReplacement($id, $parsedText);
+            if ($exists !== false) {
+                $handler = $this->handlers[$id] ?? null;
+                if ($handler) {
+                    $args = $this->getHandlerArguments($handler, $type);
+                    $parsedText = $parser->replaceMention($parsedText, $id, $this->handlerCalling($handler, $args));
+                } else if ($automaticHandling) {
+                    $parsedText = $this->handleAutomaticReplacement($id, $parsedText, $parser);
+                }
             }
         }
     }
@@ -181,7 +227,7 @@ class MessageContentReplacer
      * @param mixed $parsedText
      * @return mixed
      */
-    protected function handleAutomaticReplacement($id, $parsedText)
+    protected function handleAutomaticReplacement($id, $parsedText, $parser)
     {
         $parts = explode('.', $id);
         $modelName = $parts[0];
@@ -210,52 +256,45 @@ class MessageContentReplacer
             $replaceWith = $replaceWith(...$args);
         }
 
-        return $this->replaceMention($parsedText, $id, $replaceWith);
+        return $parser->replaceMention($parsedText, $id, $replaceWith);
     }
 
-	// MENTION PARSERS
     /**
-     * Get the html representation of a var. Used in ckeditor to identify the mentions
-     * @param string $type
-     * @return string
+     * Check usage limit and revert to previous parsers if needed
      */
-	public function getMentionHtml($varName)
-	{
-		return '<span class="mention" data-mention="' . $varName . '">';
-	}
+    protected function checkUsageLimit()
+    {
+        if ($this->maxUsages > 0) {
+            $this->currentUsageCount++;
+            
+            if ($this->currentUsageCount >= $this->maxUsages) {
+                $this->parsers = $this->previousParsers;
+                $this->previousParsers = [];
+                $this->maxUsages = 0;
+                $this->currentUsageCount = 0;
+            }
+        }
+    }
 
-    public function getVarHtml($varId)
-	{
-        $var = Variables::searchVarById($varId);
-
-        if(!$var) {
-            return '';
+    public function getVarBuilt($varId, ?string $parserName = null)
+    {
+        if ($parserName) {
+            $parser = collect($this->parsers)->first(function ($p) use ($parserName) {
+                return $p->getName() === $parserName;
+            });
+            
+            if ($parser) {
+                return $parser->buildVar($varId);
+            }
         }
 
-		return '<span class="mention" data-mention="' . $varId . '">' . __($var[1]) . '</span>';
-	}
+        foreach ($this->parsers as $parser) {
+            $result = $parser->buildVar($varId);
+            if (!empty($result)) {
+                return $result;
+            }
+        }
 
-    /**
-     * Replace the mention in the text with the value passed
-     * @param string $subject The text to be parsed
-     * @param string $varName The name of the mention to be replaced
-     * @param string $replaceWith The value to replace the mention with
-     * @return string
-     */
-	public function replaceMention($subject, $varName, $replaceWith): string
-	{
-		$start = strpos($subject, $this->getMentionHtml($varName));
-
-		while ($start > -1) {
-
-			$closeTag = '</span>';
-			$end = strpos($subject, $closeTag, $start + strlen($this->getMentionHtml($varName))) + strlen($closeTag);
-
-			$subject = substr_replace($subject, $replaceWith, $start, $end - $start);
-
-			$start = strpos($subject, $this->getMentionHtml($varName));
-		}
-
-		return $subject;
-	}
+        return '';
+    }
 }

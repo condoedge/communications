@@ -2,25 +2,25 @@
 
 namespace Condoedge\Communications\Components;
 
-use Condoedge\Utils\Kompo\Common\Table;
 use Condoedge\Communications\Models\CommunicationTemplateGroup;
 use Condoedge\Communications\Components\CommunicationTemplateForm;
+use Condoedge\Utils\Kompo\Common\WhiteTable;
 
-class CommunicationsList extends Table
+class CommunicationsList extends WhiteTable
 {
     public $id = 'communications-list';
 
     public function top()
     {
         return _FlexBetween(
-            _Html('communications.communications')->miniTitle(),
+            _Html('communications.communications')->class('text-2xl font-semibold'),
 
             _Flex(
                 _Button('communications.check-templates-triggers')->Outlined()->selfGet('checkDefaultTemplates')->inModal(),
                 _Button('communications.create-default-templates')->Outlined()->selfPost('createDefaultTemplates')->alert('communications.template-created')->refresh(),
                 _Button('communications.Create communication')->selfGet('communicationTemplateForm')->inModal(),
             )->class('gap-3'),
-        );
+        )->class('mb-4');
     }
 
     public function query()
@@ -47,7 +47,7 @@ class CommunicationsList extends Table
             _Html($communicationGroup->created_at->format('d/m/Y H:i:s')),
             _Html($communicationGroup->title),
             _Html(!$trigger ? '-' : $trigger::getName()),
-            _Html($communicationGroup->communicationTemplates()->isValid()->pluck('type')->map(fn($type) => $type->label())->implode(', ')),
+            $this->getSendingTypesList($communicationGroup),
             _Flex(
                 _Delete($communicationGroup),
                 _TripleDotsDropdown(
@@ -56,6 +56,24 @@ class CommunicationsList extends Table
                 ),
             )->class('gap-1'),
         )->selfGet('communicationTemplateForm', ['communicationTemplateGroup' => $communicationGroup->id])->inModal();
+    }
+
+    protected function getSendingTypesList($communicationGroup)
+    {
+        $communicationTemplates = $communicationGroup->communicationTemplates;
+
+        return _Flex(
+            collect($communicationTemplates)->map(function ($template, $key) use ($communicationTemplates) {
+                $isValid = !$template->is_draft;
+                $last = $key === $communicationTemplates->keys()->last();
+
+                return _Flex(
+                    _Html($template->type->label())->class($isValid ? '' : 'text-warning')
+                        ->when(!$isValid, fn ($el) => $el->balloon('translate.draft.complete-all-info')),
+                    $last ? null : _Html(',')->class('mr-1'),
+                );
+            }),
+        );
     }
 
     public function getManuallyForm()

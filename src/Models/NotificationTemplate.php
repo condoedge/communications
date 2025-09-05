@@ -49,7 +49,7 @@ class NotificationTemplate extends Model
                 }
 
                 ContentReplacer::injectContext($params);
-        
+                
                 $notifications[] = [
                     'notifier_id' => auth()->id(),
                     'type' => NotificationTypeEnum::CUSTOM,

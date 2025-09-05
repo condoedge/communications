@@ -49,7 +49,7 @@ class DatabaseCommunicationHandler extends AbstractCommunicationHandler
             _EnhancedEditor('communications.button-label')->name('custom_button_text', false)->default(json_decode($attrs['custom_button_text'] ?? '{}'))
                 ->filterVarsToThisIds($trigger::validVariablesIds('custom_button_text'))->toolbar([])->baseInputHeight(),
 
-            _Select('communications.button-route')->options($trigger::getValidRoutes())
+            _Select('communications.button-route')->options(collect($trigger::getValidRoutes())->mapWithKeys(fn ($v, $k) => [urldecode($k) => $v])->all())
                 ->name('custom_button_href', false)->default($attrs['custom_button_href']),
             
             _Checkbox('communications.has-reminder-button')->name('has_reminder_button', false)->default($notificationTemplate?->has_reminder_button),
@@ -74,6 +74,6 @@ class DatabaseCommunicationHandler extends AbstractCommunicationHandler
 
     public function requiredAttributes()
     {
-        return ['content', 'custom_button_text', 'custom_button_href'];
+        return ['content'];
     }
 }

@@ -8,6 +8,8 @@ use Condoedge\Communications\Facades\ContentReplacer;
 use Condoedge\Communications\Models\CommunicationTemplateGroup;
 use Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\ContextEnhancer;
 use Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\MessageContentReplacer;
+use Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\Parsers\BraceMentionParser;
+use Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\Parsers\HtmlMentionParser;
 use Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\VariablesManager\VariablesManager;
 use Condoedge\Communications\Services\MailElements\MailElement;
 use Illuminate\Console\Scheduling\Schedule;
@@ -84,6 +86,11 @@ class CondoedgeCommunicationServiceProvider extends ServiceProvider
 
                 return $result;
             }
+        ]);
+
+        ContentReplacer::addParsers([
+            new BraceMentionParser(),
+            new HtmlMentionParser(),
         ]);
     }
 
