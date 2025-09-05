@@ -33,9 +33,9 @@ class MessageContentReplacer
      * @param string $text
      * @return static
      */
-	public function setText(string $text)
+	public function setText(?string $text)
 	{
-		$this->text = $text;
+		$this->text = $text ?? '';
 
 		return $this;
 	}

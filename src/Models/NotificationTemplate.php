@@ -3,6 +3,7 @@
 namespace Condoedge\Communications\Models;
 
 use Condoedge\Communications\Facades\ContentReplacer;
+use Condoedge\Communications\Facades\ContextEnhancer;
 use Illuminate\Database\Eloquent\Model;
 
 // Just using kompo/auth for this, we should see how to decouple this
@@ -47,6 +48,8 @@ class NotificationTemplate extends Model
                 if (!$teamId || !$communicable->hasTeam($teamId)) {
                     continue;
                 }
+
+                $params = ContextEnhancer::setCommunicable($communicable)->setContext($params)->getEnhancedContext();
 
                 ContentReplacer::injectContext($params);
                 

@@ -25,6 +25,7 @@ class CommunicationTriggeredListener implements ShouldQueue
 
         $params = ContextEnhancer::setContext(array_merge($event->getParams(), [
             'trigger' => $event::class,
+            'trigger_instance' => $event,
         ]))->getEnhancedContext();
 
         $groups = CommunicationTemplateGroup::forTrigger($event::class)->hasValid()

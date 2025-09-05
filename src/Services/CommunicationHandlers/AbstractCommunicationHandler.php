@@ -77,7 +77,7 @@ abstract class AbstractCommunicationHandler
         $this->communication->subject = $attributes['subject'] ?? null;
         $this->communication->content = $attributes['content'] ?? null;
 
-        if ($this->validToSave($attributes)) {
+        if ($this->validToSave($attributes) || $this->communication->id) {
             $this->communication->is_draft = $this->isDraft($attributes) ? 1 : 0;
 
             $this->communication->save();
