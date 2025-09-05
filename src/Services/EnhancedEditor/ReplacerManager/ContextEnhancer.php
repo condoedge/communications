@@ -50,12 +50,12 @@ class ContextEnhancer
     {
         $this->enhancers = [
             'communicable' => function (Communicable $communicable) {
-                    $context = [];
+                $context = [];
 
-                    $context[$communicable->getContextKey()] = $communicable;
+                $context[$communicable->getContextKey()] = $communicable;
 
-                    return $context;
-                }
+                return $context;
+            }
         ];
     }
 

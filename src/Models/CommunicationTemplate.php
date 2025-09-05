@@ -46,14 +46,14 @@ class CommunicationTemplate extends Model
 
     public function getParsedTitle($params = [])
     {
-        return ContentReplacer::setText($this->subject)
+        return ContentReplacer::setText($this->subject ?? '')
             ->injectContext($params)
             ->replace($this->type);
     }
 
     public function getParsedContent($params = [])
     {
-        return ContentReplacer::setText($this->content)
+        return ContentReplacer::setText($this->content ?? '')
             ->injectContext($params)
             ->replace($this->type);
     }
