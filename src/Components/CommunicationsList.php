@@ -18,7 +18,7 @@ class CommunicationsList extends WhiteTable
             _Flex(
                 _Button('communications.check-templates-triggers')->Outlined()->selfGet('checkDefaultTemplates')->inModal(),
                 _Button('communications.create-default-templates')->Outlined()->selfPost('createDefaultTemplates')->alert('communications.template-created')->refresh(),
-                _Button('communications.Create communication')->selfGet('communicationTemplateForm')->inModal(),
+                _Button('communications.create-communication')->selfGet('communicationTemplateForm')->inModal(),
             )->class('gap-3'),
         )->class('mb-4');
     }
