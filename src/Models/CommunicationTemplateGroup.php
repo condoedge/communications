@@ -45,6 +45,7 @@ class CommunicationTemplateGroup extends Model
     {
         $communications = $this->communicationTemplates()
             ->when($type, fn($q) => $q->where('type', $type))
+            ->isValid()
             ->get();
 
         $communications->each->notify($communicables, $params);

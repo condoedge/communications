@@ -57,7 +57,7 @@ class NotificationTemplate extends Model
                     'notifier_id' => auth()->id(),
                     'type' => NotificationTypeEnum::CUSTOM,
                     'trigger' => $params['trigger'] ?? null,
-                    'user_id' => $communicable->getId(),
+                    'user_id' => $communicable->getUserId(),
                     'team_id' => $teamId,
                     'notification_template_id' => $this->id,
                     // TODO We need to see if this is needed in this new version
