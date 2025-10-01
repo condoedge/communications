@@ -27,7 +27,9 @@ class DefaultVarSection
      */
     public function getElementsParsed($uniqueId)
     {
-        return _Dropdown($this->title)->submenu(collect($this->links)->map(function($link) use($uniqueId){
+        $transKey = 'comm-section.'.$this->title;
+
+        return _Dropdown(trans()->has($transKey) ? trans($transKey) : $this->title)->submenu(collect($this->links)->map(function($link) use($uniqueId){
             return $link->getElementParsed($uniqueId);
         }))->alignUpRight()->class('varsDropdown')->class($this->classes);
     }

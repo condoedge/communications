@@ -25,7 +25,8 @@ class CommunicationsList extends WhiteTable
 
     public function query()
     {
-        return CommunicationTemplateGroup::latest();
+        return CommunicationTemplateGroup::latest()
+            ->where(fn($q) => $q->whereNull('direct_usage')->orWhere('direct_usage', false));
     }
 
     public function headers()

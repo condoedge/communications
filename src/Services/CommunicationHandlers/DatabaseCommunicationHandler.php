@@ -34,7 +34,7 @@ class DatabaseCommunicationHandler extends AbstractCommunicationHandler
     }
 
     // SAVING
-    public function formInputs($trigger = null)
+    public function formInputs($trigger = null, $context = [])
     {
         $notificationTemplate = NotificationTemplate::forCommunication($this->communication->id)->first();
 
@@ -43,11 +43,11 @@ class DatabaseCommunicationHandler extends AbstractCommunicationHandler
         return [
             _Rows(
                 _EnhancedEditor('Content')->name('content', false)->default(json_decode($attrs['content'] ?? '{}'))
-                    ->filterVarsToThisIds($trigger::validVariablesIds()),
+                    ->filterVarsToThisIds($trigger::validVariablesIds(context: $context)),
             ),
 
             _EnhancedEditor('communications.button-label')->name('custom_button_text', false)->default(json_decode($attrs['custom_button_text'] ?? '{}'))
-                ->filterVarsToThisIds($trigger::validVariablesIds('custom_button_text'))->toolbar([])->baseInputHeight(),
+                ->filterVarsToThisIds($trigger::validVariablesIds('custom_button_text', context: $context))->toolbar([])->baseInputHeight(),
 
             _Select('communications.button-route')->options(collect($trigger::getValidRoutes())->mapWithKeys(fn ($v, $k) => [urldecode($k) => $v])->all())
                 ->name('custom_button_href', false)->default($attrs['custom_button_href']),

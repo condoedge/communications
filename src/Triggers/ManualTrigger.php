@@ -27,18 +27,22 @@ class ManualTrigger implements CommunicableEvent
         return __('communications.manual-trigger');
     }
 
-    public static function validVariablesIds($specificField = null): ?array
+    public static function validVariablesIds($specificField = null, $context = []): ?array
     {
+        if (isset($context['communicable_type'])) {
+            return config('kompo-communications.manual-trigger.valid-variables.' . $context['communicable_type'], null);
+        }
+
         return null;
     }
 
     function getCommunicables(): array
     {
         if ($this->communicablesIds == 'all') {
-            return $this->communicableModel::validForCommunication()->get();
+            return $this->communicableModel::validForCommunication()->get()->all();
         }
 
-        return $this->communicableModel::whereIn('id', $this->communicablesIds)->get();
+        return $this->communicableModel::whereIn('id', $this->communicablesIds)->get()->all();
     }
 
     function getParams(): array

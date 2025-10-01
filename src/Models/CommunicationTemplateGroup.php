@@ -2,6 +2,7 @@
 
 namespace Condoedge\Communications\Models;
 
+use Condoedge\Communications\Triggers\ManualTrigger;
 use Condoedge\Utils\Models\Model;
 use Illuminate\Support\Collection;
 
@@ -55,6 +56,26 @@ class CommunicationTemplateGroup extends Model
     {
         return self::voids()->whereDate('created_at', '<', now()->subDay())
             ->delete();
+    }
+
+
+    /**
+     * @method createManualTemp
+     * 
+     * @description To send a just one case communication. It could be used more than once, 
+     * but it'll be hidden in the list and always be used to trigger manually
+     */
+    public static function createManualTemp()
+    {
+        $trigger = ManualTrigger::class;
+
+        $communicationTemplateGroup = new static;
+        $communicationTemplateGroup->trigger = $trigger;
+        $communicationTemplateGroup->title = $trigger::getName();
+        $communicationTemplateGroup->direct_usage = true;
+        $communicationTemplateGroup->save();
+
+        return $communicationTemplateGroup;
     }
 
     public static function createForTrigger($trigger)

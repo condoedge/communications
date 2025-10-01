@@ -90,14 +90,14 @@ abstract class AbstractCommunicationHandler
      * Return the form inputs for the communication to integrate into the `getForm` method
      * @return array<\Kompo\Elements\Element>|\Kompo\Elements\Element
      */
-    public function formInputs($trigger = null)
+    public function formInputs($trigger = null, $context = [])
     {
         $attrs = $this->communication->getAttributes();
 
         return [
             _Translatable('Subject')->name('subject', false)->default(json_decode($attrs['subject'] ?? '{}')),
             _EnhancedEditor('Content')->name('content', false)->default(json_decode($attrs['content'] ?? '{}'))
-                ->filterVarsToThisIds($trigger::validVariablesIds()),
+                ->filterVarsToThisIds($trigger::validVariablesIds(context: $context)),
         ];
     }
 
@@ -105,14 +105,14 @@ abstract class AbstractCommunicationHandler
      * Return the form for the communication
      * @return \Kompo\Rows
      */
-    final public function getForm($trigger = null)
+    final public function getForm($trigger = null, $context = [])
     {
         if ($trigger && !$this->typeIsValidToTrigger($trigger)) {
             return _Html('The selected communication type is not valid for this trigger.')->class('text-center text-red-500');
         }
 
         return _Rows(
-            _Rows($this->formInputs($trigger)),
+            _Rows($this->formInputs($trigger, $context)),
 
             _Hidden()->name('previous_communication_type', false)->value($this->type),
         );

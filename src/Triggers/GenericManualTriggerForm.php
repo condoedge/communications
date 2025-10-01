@@ -39,7 +39,7 @@ class GenericManualTriggerForm extends Modal
 
             _Select('communications.select-communicable-type')->name('communicable_model')
                 ->selfGet('selectCommunicables')->inPanel('communicables-select')
-                ->options($this->communicables()),
+                ->options($this->communicableTypes()),
 
             _Panel()->id('communicables-select'),
 
@@ -72,7 +72,16 @@ class GenericManualTriggerForm extends Modal
         return $communications->pluck('title', 'id');
     }
 
-    protected function communicables()
+    protected function communicableTypes()
+    {
+        if (!config('kompo-communications.communicable-types')) {
+            return $this->communicablesFromAllProject();
+        }
+
+        return collect(config('kompo-communications.communicable-types'))->mapWithKeys(fn($class, $label) => [$class => __($label)]);
+    }
+
+    protected function communicablesFromAllProject()
     {
         $directory = app_path('Models');
         self::loadDirectoryFiles($directory);
@@ -83,7 +92,8 @@ class GenericManualTriggerForm extends Modal
 
                 return !$reflectionClass->isAbstract() && in_array(Communicable::class, class_implements($class));
             })
-            ->mapWithKeys(fn($class) => [$class => (new $class)->getTable()]);
+            ->unique(fn($class) => (new $class)->getTable())
+            ->mapWithKeys(fn($class) => [$class => __('communicable.' . (new $class)->getTable())]);
     }
 
     protected function loadDirectoryFiles($directory)

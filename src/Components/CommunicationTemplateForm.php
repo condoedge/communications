@@ -4,6 +4,7 @@ namespace Condoedge\Communications\Components;
 
 use Condoedge\Communications\Models\CommunicationTemplateGroup;
 use Condoedge\Communications\Models\CommunicationType;
+use Condoedge\Communications\Triggers\ManualTrigger;
 use Condoedge\Utils\Kompo\Common\Modal;
 
 class CommunicationTemplateForm extends Modal
@@ -18,23 +19,62 @@ class CommunicationTemplateForm extends Modal
     public $refreshAfterSubmit = true;
     public $noHeaderButtons = true;
 
+    protected $directUsage = false;
+
+    protected $communicableType;
+    protected $communicablesIds;
+
+    protected $context;
+    public function created()
+    {
+        $this->directUsage = $this->prop('direct_usage');
+        $this->communicableType = $this->prop('communicable_type');
+        $this->communicablesIds = $this->prop('communicables_ids');
+
+        if ($this->directUsage) {
+            $this->refreshAfterSubmit = false;
+            $this->_Title = 'translate.send-communication';
+        }
+
+        $this->context = [
+            'communicable_type' => $this->communicableType,
+            'communicables_ids' => $this->communicablesIds,
+        ];
+    }
+
     public function afterSave()
     {
         if (request('communication_type')) {
             $this->savePreviousCommunication(request('communication_type'));
+        }
+
+        if ($this->directUsage) {
+            event(new ManualTrigger(
+                [$this->model->id],
+                $this->communicableType,
+                explode(',', $this->communicablesIds)
+            ));
         }
     }
     
     public function body()
     {
         return _Rows(
-            _Input('Name')->name('title'),
+            $this->directUsage ? _Rows(
+                _Hidden()->name('title')->value($this->model->title),
+                _Hidden()->name('trigger')->value($this->model->trigger),
+            ) : 
+            
+            _Rows(
+                _Input('Name')->name('title'),
 
-            _Select('trigger')->name('trigger')
-                ->options(collect(CommunicationTemplateGroup::getTriggers())->mapWithKeys(fn($trigger) => [$trigger => $trigger::getName()]))
-                ->selfPost('saveAndGetNewForm')
-                ->inPanel('communication-type-form')
-                ->panelLoading('communication-type-form'),
+                _Select('trigger')->name('trigger')
+                    ->options(collect(CommunicationTemplateGroup::getTriggers())->mapWithKeys(fn($trigger) => [$trigger => $trigger::getName()]))
+                    ->selfPost('saveAndGetNewForm')
+                    ->inPanel('communication-type-form')
+                    ->panelLoading('communication-type-form'),
+            ),
+
 
             !$this->model->id ? _Rows(
                 _Html('fill the main data to complete the other messages')->class('text-center mb-4'),
@@ -48,13 +88,22 @@ class CommunicationTemplateForm extends Modal
                     ->inPanel('communication-type-form'),
 
                 _Panel(
-                    CommunicationType::EMAIL->handler($this->model->findCommunicationTemplate(CommunicationType::EMAIL->value))->getForm($this->model->trigger),
+                    CommunicationType::EMAIL->handler($this->model->findCommunicationTemplate(CommunicationType::EMAIL->value))->getForm($this->model->trigger, $this->context),
                 )->id(id: 'communication-type-form')->class('mb-6'),
             ),
 
-            _SubmitButton(!$this->model->id ? 'communication.next' : 'generic.save')->refresh('communications-list')
+            _SubmitButton($this->submitButtonMessage())->refresh('communications-list')
                 ->when($this->model->id, fn($el) => $el->closeModal()),
         );
+    }
+
+    protected function submitButtonMessage()
+    {
+        if ($this->directUsage) {
+            return 'translate.send';
+        }
+
+        return !$this->model->id ? 'communication.next' : 'generic.save';
     }
 
     public function saveAndGetNewForm()
@@ -77,7 +126,7 @@ class CommunicationTemplateForm extends Modal
 
         $communicationType = CommunicationType::from($communicationType);
 
-        return $communicationType->handler($oldCommunication)->getForm($trigger ?? $this->model->trigger);
+        return $communicationType->handler($oldCommunication)->getForm($trigger ?? $this->model->trigger, $this->context);
     }
 
     protected function savePreviousCommunication($communicationType)
