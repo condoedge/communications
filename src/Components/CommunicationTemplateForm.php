@@ -33,7 +33,7 @@ class CommunicationTemplateForm extends Modal
 
         if ($this->directUsage) {
             $this->refreshAfterSubmit = false;
-            $this->_Title = 'translate.send-communication';
+            $this->_Title = 'communications.send-communication';
         }
 
         $this->context = [
@@ -100,7 +100,7 @@ class CommunicationTemplateForm extends Modal
     protected function submitButtonMessage()
     {
         if ($this->directUsage) {
-            return 'translate.send';
+            return 'communications.send';
         }
 
         return !$this->model->id ? 'communication.next' : 'generic.save';

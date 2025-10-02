@@ -29,6 +29,7 @@
 	"communications.select-communicables": "Sélectionner les communicables",
 	"communications.select-communication": "Sélectionner la communication",
 	"communications.send": "Envoyer",
+	"communications.send-communication": "Envoyer une communication",
 	"communications.send-manual-communication": "Envoyer une communication manuelle",
 	"communications.sent": "Envoyée",
 	"communications.sent-at": "Envoyée le",
