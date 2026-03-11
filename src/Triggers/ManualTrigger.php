@@ -3,8 +3,9 @@
 namespace Condoedge\Communications\Triggers;
 
 use Condoedge\Communications\EventsHandling\Contracts\CommunicableEvent;
+use Condoedge\Communications\EventsHandling\Contracts\DatabaseCommunicableEvent;
 
-class ManualTrigger implements CommunicableEvent
+class ManualTrigger implements CommunicableEvent, DatabaseCommunicableEvent
 {
     protected $communicationsIds;
     protected $communicablesIds;
@@ -33,7 +34,7 @@ class ManualTrigger implements CommunicableEvent
             return config('kompo-communications.manual-trigger.valid-variables.' . $context['communicable_type'], null);
         }
 
-        return null;
+        return config('kompo-communications.manual-trigger.valid-variables.generic', []);
     }
 
     function getCommunicables(): array
@@ -55,5 +56,12 @@ class ManualTrigger implements CommunicableEvent
         return new GenericManualTriggerForm([
             'communication_id' => $communicationGroupId
         ]);
+    }
+
+    public static function getValidRoutes(): array
+    {
+        return collect(config('kompo-communications.manual-trigger.valid-routes', []))->map(function ($route) {
+            return route($route);
+        })->all();
     }
 }

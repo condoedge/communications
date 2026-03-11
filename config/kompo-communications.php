@@ -13,5 +13,9 @@ return [
         'valid-variables' => [
             // 'App\Models\User' => ['user_first_name', 'user_last_name', 'user_email'],
         ],
+
+        'valid-routes' => [
+            // 'dashboard'
+        ],
     ],
 ];
