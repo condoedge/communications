@@ -23,8 +23,8 @@ class CommunicableSelectForm extends Form
     {
         $communicables = $this->communicableModel::search($search)->get();
 
-        return array_merge(['all' => __('communications.everyone')], $communicables->mapWithKeys(fn($c) => [
+        return ['all' => __('communications.everyone')] + $communicables->mapWithKeys(fn($c) => [
             $c->id => $c->label()
-        ])->toArray());
+        ])->toArray();
     }
 }
