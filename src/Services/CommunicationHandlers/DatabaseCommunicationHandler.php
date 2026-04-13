@@ -49,8 +49,8 @@ class DatabaseCommunicationHandler extends AbstractCommunicationHandler
             _EnhancedEditor('communications.button-label')->name('custom_button_text', false)->default(json_decode($attrs['custom_button_text'] ?? '{}'))
                 ->filterVarsToThisIds($trigger::validVariablesIds('custom_button_text', context: $context))->toolbar([])->baseInputHeight(),
 
-            _Select('communications.button-route')->options(collect($trigger::getValidRoutes())->mapWithKeys(fn ($v, $k) => [urldecode($k) => $v])->all())
-                ->name('custom_button_href', false)->default($attrs['custom_button_href']),
+            _Select('communications.button-route')->options($this->getAllValidRoutes($trigger))
+                ->name('custom_button_href', false)->default($this->getAllValidRoutes($trigger)->search($attrs['custom_button_href'] ?? null)),
             
             _Checkbox('communications.has-reminder-button')->name('has_reminder_button', false)->default($notificationTemplate?->has_reminder_button),
         ];
@@ -62,12 +62,21 @@ class DatabaseCommunicationHandler extends AbstractCommunicationHandler
 
         $notificationTemplate = NotificationTemplate::forCommunication($this->communication->id)->first() ?: new NotificationTemplate();
         $notificationTemplate->custom_button_text = $attributes['custom_button_text'] ?? null;
-        $notificationTemplate->custom_button_href = $attributes['custom_button_href'] ?? null;
+        $notificationTemplate->custom_button_href = $this->getAllValidRoutes($attributes['trigger'] ?? null)[$attributes['custom_button_href']] ?? null;
         $notificationTemplate->has_reminder_button = $attributes['has_reminder_button'] ?? null;
         $notificationTemplate->custom_button_handler = $attributes['custom_button_handler'] ?? null;
 
         $notificationTemplate->communication_id = $this->communication->id;
         $notificationTemplate->save();
+    }
+
+    protected function getAllValidRoutes($trigger)
+    {
+        if (!$trigger) {
+            return [];
+        }
+
+        return collect($trigger::getValidRoutes())->mapWithKeys(fn ($v, $k) => [urldecode($k) => $v]);
     }
 
     // VALIDATION
