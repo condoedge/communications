@@ -12,6 +12,8 @@ class GenericManualTriggerForm extends Modal
 
     protected $communicationId;
 
+    public $nestedFields = true;
+
     public function created()
     {
         $this->communicationId = $this->prop('communication_id');
@@ -49,11 +51,19 @@ class GenericManualTriggerForm extends Modal
 
     public function selectCommunicables()
     {
-        if(!request('communicable_model')) return null;
+        return _MultiSelect('communications.select-communicables')->name(name: 'communicables_ids')
+            ->searchOptions(3, 'searchCommunicables')
+            ->ajaxPayload(['communicable_model' => request('communicable_model')]);
+    }
 
-        return new CommunicableSelectForm(null, [
-            'communicable_model' => request('communicable_model')
-        ]);
+    public function searchCommunicables($search)
+    {
+        $communicableModel = request('communicable_model');
+        $communicables = $communicableModel::search($search)->get();
+
+        return ['all' => __('communications.everyone')] + $communicables->mapWithKeys(fn($c) => [
+            $c->id => $c->label()
+        ])->toArray();
     }
 
     public function retrieveCommunication($id)
