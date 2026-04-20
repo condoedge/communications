@@ -241,13 +241,25 @@ class MessageContentReplacer
         }
 
         if ($attribute) {
-            if (method_exists($this->context[$modelName], $attribute)) {
-                $replaceWith = $this->context[$modelName]->$attribute();
-            } elseif (property_exists($this->context[$modelName] ?? new \stdClass, $attribute) || method_exists($this->context[$modelName] ?? new \stdClass, 'getAttribute')) {
-                $replaceWith = $this->context[$modelName]?->$attribute;
+            $model = $this->context[$modelName];
+
+            // Prefer dynamic property access: on Eloquent models this resolves
+            // relations ({invoice.team} → Team model) and attribute accessors.
+            // Falls back to a direct method call for plain PHP objects.
+            if ($model instanceof \Illuminate\Database\Eloquent\Model) {
+                $replaceWith = $model->$attribute;
+            } elseif (method_exists($model, $attribute)) {
+                $replaceWith = $model->$attribute();
+            } elseif (property_exists($model ?? new \stdClass, $attribute)) {
+                $replaceWith = $model?->$attribute;
             }
         } else {
             $replaceWith = $this->context[$modelName];
+        }
+
+        // If a relation builder leaks through, resolve it to its model/collection.
+        if ($replaceWith instanceof \Illuminate\Database\Eloquent\Relations\Relation) {
+            $replaceWith = $replaceWith->getResults();
         }
 
         if (is_callable($replaceWith)) {
@@ -256,7 +268,23 @@ class MessageContentReplacer
             $replaceWith = $replaceWith(...$args);
         }
 
-        return $parser->replaceMention($parsedText, $id, $replaceWith);
+        // Cast non-scalar resolved values to a readable string so the parser
+        // gets a stable type (prevents TypeError in replaceMention).
+        if (!is_scalar($replaceWith) && $replaceWith !== null) {
+            if ($replaceWith instanceof \Illuminate\Database\Eloquent\Model) {
+                $replaceWith = (string) ($replaceWith->display ?? $replaceWith->name ?? $replaceWith->getKey());
+            } elseif ($replaceWith instanceof \Illuminate\Support\Collection || is_array($replaceWith)) {
+                $replaceWith = collect($replaceWith)
+                    ->map(fn ($item) => is_object($item) ? ($item->display ?? $item->name ?? (string) $item->getKey()) : (string) $item)
+                    ->implode(', ');
+            } elseif (method_exists($replaceWith, '__toString')) {
+                $replaceWith = (string) $replaceWith;
+            } else {
+                $replaceWith = '';
+            }
+        }
+
+        return $parser->replaceMention($parsedText, $id, (string) $replaceWith);
     }
 
     /**
