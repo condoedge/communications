@@ -2,6 +2,7 @@
 
 namespace Condoedge\Communications;
 
+use Condoedge\Communications\Console\SeedTemplatesCommand;
 use Condoedge\Communications\EventsHandling\CommunicationTriggeredListener;
 use Condoedge\Communications\EventsHandling\Contracts\CommunicableEvent;
 use Condoedge\Communications\Facades\ContentReplacer;
@@ -12,6 +13,8 @@ use Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\Parsers\Bra
 use Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\Parsers\HtmlMentionParser;
 use Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\VariablesManager\VariablesManager;
 use Condoedge\Communications\Services\MailElements\MailElement;
+use Condoedge\Communications\Services\TemplateSeeding\TemplateSeedingService;
+use Condoedge\Communications\Services\TemplateSeeding\TemplateSeedingServiceContract;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
@@ -52,6 +55,12 @@ class CondoedgeCommunicationServiceProvider extends ServiceProvider
         $this->loadListeners();
 
         $this->loadCrons();
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                SeedTemplatesCommand::class,
+            ]);
+        }
     }
 
     /**
@@ -77,6 +86,8 @@ class CondoedgeCommunicationServiceProvider extends ServiceProvider
         $this->app->singleton('communcations-content-replacer', function () {
             return new MessageContentReplacer();
         });
+
+        $this->app->bind(TemplateSeedingServiceContract::class, TemplateSeedingService::class);
 
         ContentReplacer::setPostProcessors([
             function ($result) {

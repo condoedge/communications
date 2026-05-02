@@ -4,6 +4,7 @@ namespace Condoedge\Communications\Components;
 
 use Condoedge\Communications\Models\CommunicationTemplateGroup;
 use Condoedge\Communications\Components\CommunicationTemplateForm;
+use Condoedge\Communications\Services\TemplateSeeding\TemplateSeedingServiceContract;
 use Condoedge\Utils\Kompo\Common\WhiteTable;
 
 class CommunicationsList extends WhiteTable
@@ -16,8 +17,11 @@ class CommunicationsList extends WhiteTable
             _Html('communications.communications')->class('text-2xl font-semibold'),
 
             _Flex(
-                _Button('communications.check-templates-triggers')->Outlined()->selfGet('checkDefaultTemplates')->inModal(),
-                _Button('communications.create-default-templates')->Outlined()->selfPost('createDefaultTemplates')->alert('communications.template-created')->refresh(),
+                // Default-template seeding is now handled by `php artisan communications:seed-templates`.
+                // Buttons preserved as comments so the UI flow can be re-enabled by uncommenting; the
+                // underlying methods delegate to TemplateSeedingService for parity with the command.
+                // _Button('communications.check-templates-triggers')->Outlined()->selfGet('checkDefaultTemplates')->inModal(),
+                // _Button('communications.create-default-templates')->Outlined()->selfPost('createDefaultTemplates')->alert('communications.template-created')->refresh(),
                 _Button('communications.create-communication')->selfGet('communicationTemplateForm')->inModal(),
             )->class('gap-3'),
         )->class('mb-4');
@@ -89,26 +93,19 @@ class CommunicationsList extends WhiteTable
 
     public function checkDefaultTemplates()
     {
-        $triggers = collect(CommunicationTemplateGroup::getTriggers())->filter(function ($trigger) {
-            return !CommunicationTemplateGroup::where('trigger', $trigger)->exists();
-        })->map(function ($trigger) {
-            return _Html($trigger::getName())->class('text-danger');
-        });
+        $missing = app(TemplateSeedingServiceContract::class)->getMissingTriggers()
+            ->map(fn ($trigger) => _Html($trigger::getName())->class('text-danger'));
 
         return _Rows(
-            _Html($triggers->isEmpty() ? 'communications.all-templates-are-set' : 'communications.some-templates-are-missing')
+            _Html($missing->isEmpty() ? 'communications.all-templates-are-set' : 'communications.some-templates-are-missing')
                 ->class('text-lg')
-                ->class($triggers->isEmpty() ? 'text-positive' : 'text-black'), 
-            ...$triggers
+                ->class($missing->isEmpty() ? 'text-positive' : 'text-black'),
+            ...$missing,
         )->class('p-4');
     }
 
     public function createDefaultTemplates()
     {
-        collect(CommunicationTemplateGroup::getTriggers())->each(function ($trigger) {
-            if (CommunicationTemplateGroup::where('trigger', $trigger)->exists()) return;
-
-            CommunicationTemplateGroup::createForTrigger($trigger);
-        });
+        app(TemplateSeedingServiceContract::class)->seedAll();
     }
 }

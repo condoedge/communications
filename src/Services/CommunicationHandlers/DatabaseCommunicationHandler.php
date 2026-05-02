@@ -40,18 +40,30 @@ class DatabaseCommunicationHandler extends AbstractCommunicationHandler
 
         $attrs = collect($this->communication->getAttributes())->merge($notificationTemplate?->getAttributes())->toArray();
 
+        $handlerOptions = $this->getValidHandlerOptions($trigger, $context);
+        $currentHandler = $attrs['custom_button_handler'] ?? null;
+        $usesDefaultHandler = $this->isDefaultHandler($currentHandler);
+
         return [
             _Rows(
                 _EnhancedEditor('Content')->name('content', false)->default(json_decode($attrs['content'] ?? '{}'))
                     ->filterVarsToThisIds($trigger::validVariablesIds(context: $context)),
             ),
 
-            _EnhancedEditor('communications.button-label')->name('custom_button_text', false)->default(json_decode($attrs['custom_button_text'] ?? '{}'))
-                ->filterVarsToThisIds($trigger::validVariablesIds('custom_button_text', context: $context))->toolbar([])->baseInputHeight(),
+            count($handlerOptions) <= 1 ? null :
+                _Select('communications.button-handler')->name('custom_button_handler', false)
+                    ->options($handlerOptions)
+                    ->default($currentHandler ?? '')
+                    ->toggleId('default-button-fields', !$usesDefaultHandler),
 
-            _Select('communications.button-route')->options($this->getAllValidRoutes($trigger))
-                ->name('custom_button_href', false)->default($this->getAllValidRoutes($trigger)->search($attrs['custom_button_href'] ?? null)),
-            
+            _Rows(
+                _EnhancedEditor('communications.button-label')->name('custom_button_text', false)->default(json_decode($attrs['custom_button_text'] ?? '{}'))
+                    ->filterVarsToThisIds($trigger::validVariablesIds('custom_button_text', context: $context))->toolbar([])->baseInputHeight(),
+
+                _Select('communications.button-route')->options($this->getAllValidRoutes($trigger))
+                    ->name('custom_button_href', false)->default($this->getAllValidRoutes($trigger)->search($attrs['custom_button_href'] ?? null)),
+            )->id('default-button-fields'),
+
             _Checkbox('communications.has-reminder-button')->name('has_reminder_button', false)->default($notificationTemplate?->has_reminder_button),
         ];
     }
@@ -60,14 +72,59 @@ class DatabaseCommunicationHandler extends AbstractCommunicationHandler
     {
         parent::save($groupId, $attributes);
 
+        $handlerClass = $attributes['custom_button_handler'] ?? null;
+        $usesDefaultHandler = $this->isDefaultHandler($handlerClass);
+
         $notificationTemplate = NotificationTemplate::forCommunication($this->communication->id)->first() ?: new NotificationTemplate();
-        $notificationTemplate->custom_button_text = $attributes['custom_button_text'] ?? null;
-        $notificationTemplate->custom_button_href = $this->getAllValidRoutes($attributes['trigger'] ?? null)[$attributes['custom_button_href']] ?? null;
+        $notificationTemplate->custom_button_text = $usesDefaultHandler ? ($attributes['custom_button_text'] ?? null) : null;
+        $notificationTemplate->custom_button_href = $usesDefaultHandler
+            ? ($this->getAllValidRoutes($attributes['trigger'] ?? null)[$attributes['custom_button_href'] ?? null] ?? null)
+            : null;
         $notificationTemplate->has_reminder_button = $attributes['has_reminder_button'] ?? null;
-        $notificationTemplate->custom_button_handler = $attributes['custom_button_handler'] ?? null;
+        $notificationTemplate->custom_button_handler = $handlerClass ?: null;
 
         $notificationTemplate->communication_id = $this->communication->id;
         $notificationTemplate->save();
+    }
+
+    /**
+     * Resolve the handler dropdown options for this trigger.
+     *
+     * Reads the global registry from `kompo-communications.notification_button_handlers`
+     * and intersects with the trigger's `validNotificationButtonHandlers()` if defined.
+     */
+    protected function getValidHandlerOptions($trigger, array $context = []): array
+    {
+        $allHandlers = config('kompo-communications.notification_button_handlers', []);
+
+        if (empty($allHandlers)) {
+            return [];
+        }
+
+        $allowed = null;
+        if ($trigger && method_exists($trigger, 'validNotificationButtonHandlers')) {
+            $allowed = $trigger::validNotificationButtonHandlers($context);
+        }
+
+        if ($allowed === null) {
+            return $allHandlers;
+        }
+
+        return collect($allHandlers)->only($allowed)->all();
+    }
+
+    protected function isDefaultHandler(?string $handlerClass): bool
+    {
+        if (!$handlerClass) {
+            return true;
+        }
+
+        $default = config(
+            'kompo-auth.notifications.default_notification_button_handler',
+            \Kompo\Auth\Models\Monitoring\DefaultNotificationButtonHandler::class
+        );
+
+        return $handlerClass === $default;
     }
 
     protected function getAllValidRoutes($trigger)
