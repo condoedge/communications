@@ -9,8 +9,9 @@ use Condoedge\Communications\Services\CommunicationHandlers\Contracts\TaskCommun
 use Kompo\Tasks\Models\Enums\TaskStatusEnum;
 use Kompo\Tasks\Models\Enums\TaskVisibilityEnum;
 use Kompo\Tasks\Models\Task;
-use Kompo\Tasks\Models\TaskDetail;
 use Kompo\Tasks\Models\TaskAssignation;
+use Kompo\Tasks\Models\TaskDetail;
+use Kompo\Tasks\Models\TaskLink;
 
 class TaskCommunicationHandler extends AbstractCommunicationHandler
 {
@@ -43,14 +44,29 @@ class TaskCommunicationHandler extends AbstractCommunicationHandler
 
             TaskAssignation::createForMany($task->id, $assignables);
 
+            $this->linkTaskToRelatedTaskable($task, $event);
+
             // Break the flow here, we already created the task and assigned it to the assignables
             return;
         }
-        
-        collect($communicables)->map(function($communicable) use ($params) {
+
+        collect($communicables)->map(function($communicable) use ($params, $event) {
             $params = ContextEnhancer::setCommunicable($communicable)->setContext($params)->getEnhancedContext();
             $task = $this->createTaskWithDetail($params, $communicable->getId());
+            
+            $this->linkTaskToRelatedTaskable($task, $event);
         });
+    }
+
+    protected function linkTaskToRelatedTaskable(Task $task, TaskCommunicableEvent $event): void
+    {
+        $taskable = $event->getRelatedTaskable();
+
+        if (!$taskable) {
+            return;
+        }
+
+        TaskLink::insertIfNew($task->id, $taskable->getKey(), $taskable->getMorphClass());
     }
 
     protected function getTeamId($params)
