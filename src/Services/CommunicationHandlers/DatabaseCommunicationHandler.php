@@ -6,7 +6,7 @@ use Condoedge\Communications\EventsHandling\Contracts\DatabaseCommunicableEvent;
 use Condoedge\Communications\Models\NotificationTemplate;
 use Condoedge\Communications\Services\CommunicationHandlers\AbstractCommunicationHandler;
 use Condoedge\Communications\Services\CommunicationHandlers\Contracts\DatabaseCommunicable;
-
+use Kompo\Auth\Models\Monitoring\DefaultNotificationButtonHandler;
 
 class DatabaseCommunicationHandler extends AbstractCommunicationHandler
 {
@@ -50,19 +50,23 @@ class DatabaseCommunicationHandler extends AbstractCommunicationHandler
                     ->filterVarsToThisIds($trigger::validVariablesIds(context: $context)),
             ),
 
-            count($handlerOptions) <= 1 ? null :
-                _Select('communications.button-handler')->name('custom_button_handler', false)
-                    ->options($handlerOptions)
-                    ->default($currentHandler ?? '')
-                    ->toggleId('default-button-fields', !$usesDefaultHandler),
-
             _Rows(
-                _EnhancedEditor('communications.button-label')->name('custom_button_text', false)->default(json_decode($attrs['custom_button_text'] ?? '{}'))
-                    ->filterVarsToThisIds($trigger::validVariablesIds('custom_button_text', context: $context))->toolbar([])->baseInputHeight(),
+                count($handlerOptions) <= 1 ? null :
+                    _Select('communications.button-handler')->name('custom_button_handler', false)
+                        ->options($handlerOptions)
+                        ->class('!mb-0')
+                        ->default($currentHandler ?? '')
+                        ->toggleId('default-button-fields', !$usesDefaultHandler),
 
-                _Select('communications.button-route')->options($this->getAllValidRoutes($trigger))
-                    ->name('custom_button_href', false)->default($this->getAllValidRoutes($trigger)->search($attrs['custom_button_href'] ?? null)),
-            )->id('default-button-fields'),
+                _Rows(
+                    _EnhancedEditor('communications.button-label')->name('custom_button_text', false)->default(json_decode($attrs['custom_button_text'] ?? '{}'))
+                        ->filterVarsToThisIds($trigger::validVariablesIds('custom_button_text', context: $context))->toolbar([])->baseInputHeight(),
+
+                    _Select('communications.button-route')->options($this->getAllValidRoutes($trigger))
+                        ->class('!mb-0 mt-2')
+                        ->name('custom_button_href', false)->default($this->getAllValidRoutes($trigger)->search($attrs['custom_button_href'] ?? null)),
+                )->id('default-button-fields')->class('mt-4 gap-2'),
+            )->class('mt-6 mb-4'),
 
             _Checkbox('communications.has-reminder-button')->name('has_reminder_button', false)->default($notificationTemplate?->has_reminder_button),
         ];
@@ -92,6 +96,8 @@ class DatabaseCommunicationHandler extends AbstractCommunicationHandler
      *
      * Reads the global registry from `kompo-communications.notification_button_handlers`
      * and intersects with the trigger's `validNotificationButtonHandlers()` if defined.
+     * 
+     * By default we don't show this option unless the trigger explicitly allows it, to avoid confusion with handlers that may not be designed for this trigger.
      */
     protected function getValidHandlerOptions($trigger, array $context = []): array
     {
@@ -107,10 +113,15 @@ class DatabaseCommunicationHandler extends AbstractCommunicationHandler
         }
 
         if ($allowed === null) {
-            return $allHandlers;
+            if (!array_key_exists(DefaultNotificationButtonHandler::class, $allHandlers)) {
+                return $allHandlers;
+            }
+            return [DefaultNotificationButtonHandler::class => $allHandlers[DefaultNotificationButtonHandler::class]];
         }
 
-        return collect($allHandlers)->only($allowed)->all();
+        return collect($allHandlers)->only($allowed)
+            ->mapWithKeys(fn ($label, $class) => [$class => __($label)])
+            ->all();
     }
 
     protected function isDefaultHandler(?string $handlerClass): bool
