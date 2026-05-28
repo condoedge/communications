@@ -5,6 +5,7 @@ namespace Condoedge\Communications\Services\CommunicationHandlers;
 use Condoedge\Communications\EventsHandling\Contracts\CommunicableEvent;
 use Condoedge\Communications\Models\CommunicationTemplate;
 use Condoedge\Communications\Models\CommunicationType;
+use Condoedge\Communications\Services\CommunicationHandlers\Contracts\ChannelAware;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
@@ -50,12 +51,17 @@ abstract class AbstractCommunicationHandler
     {
         $communicableInterface = $this->communicableInterface();
 
-        $communicables = collect($communicables)->filter(function ($communicable) use ($communicableInterface) {
-            $condition = in_array($communicableInterface, class_implements($communicable));
+        $communicables = collect($communicables)->filter(function ($c) use ($communicableInterface) {
+            if (!($c instanceof $communicableInterface)) {
+                Log::warning('Communicable does not implement the required interface: ' . $communicableInterface);
+                return false;
+            }
 
-            if (!$condition) Log::warning('Communicable does not implement the required interface: ' . $communicableInterface);
+            if ($c instanceof ChannelAware && !$c->acceptsChannel($communicableInterface)) {
+                return false; // intentional suppression — no warning
+            }
 
-            return $condition;
+            return true;
         });
 
         $this->notifyCommunicables($communicables->all(), $params);
