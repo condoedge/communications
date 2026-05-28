@@ -4,6 +4,7 @@ namespace Condoedge\Communications\Models;
 
 use Condoedge\Communications\Facades\ContentReplacer;
 use Condoedge\Communications\Facades\ContextEnhancer;
+use Condoedge\Communications\Services\CommunicationHandlers\AbstractCommunicationHandler;
 use Illuminate\Database\Eloquent\Model;
 
 // Just using kompo/auth for this, we should see how to decouple this
@@ -44,32 +45,34 @@ class NotificationTemplate extends Model
         $notifications = [];
 
         foreach ($communicables as $communicable) {
-            foreach ($params['teams_ids'] as $teamId) {
-                if (!$teamId || !$communicable->hasTeam($teamId)) {
-                    continue;
+            AbstractCommunicationHandler::withRecipientLocale($communicable, function () use ($communicable, &$params, &$notifications) {
+                foreach ($params['teams_ids'] as $teamId) {
+                    if (!$teamId || !$communicable->hasTeam($teamId)) {
+                        continue;
+                    }
+
+                    $params = ContextEnhancer::setCommunicable($communicable)->setContext($params)->getEnhancedContext();
+
+                    ContentReplacer::injectContext($params);
+
+                    $notifications[] = [
+                        'notifier_id' => auth()->id(),
+                        'type' => NotificationTypeEnum::CUSTOM,
+                        'trigger' => $params['trigger'] ?? null,
+                        'user_id' => $communicable->getUserId(),
+                        'team_id' => $teamId,
+                        'notification_template_id' => $this->id,
+                        // TODO We need to see if this is needed in this new version
+                        'about_id' => $params['about_id'] ?? null,
+                        'about_type' => $params['about_type'] ?? null,
+                        'custom_message' => ContentReplacer::setText($this->communication->content)->replace(CommunicationType::DATABASE),
+                        'custom_button_text' => ContentReplacer::setText($this->custom_button_text)->replace(CommunicationType::DATABASE),
+                        'custom_button_href' => ContentReplacer::setText($this->custom_button_href)->replace(CommunicationType::DATABASE),
+                        'has_reminder_button' => $this->has_reminder_button,
+                        'custom_button_handler' => $this->custom_button_handler,
+                    ];
                 }
-
-                $params = ContextEnhancer::setCommunicable($communicable)->setContext($params)->getEnhancedContext();
-
-                ContentReplacer::injectContext($params);
-                
-                $notifications[] = [
-                    'notifier_id' => auth()->id(),
-                    'type' => NotificationTypeEnum::CUSTOM,
-                    'trigger' => $params['trigger'] ?? null,
-                    'user_id' => $communicable->getUserId(),
-                    'team_id' => $teamId,
-                    'notification_template_id' => $this->id,
-                    // TODO We need to see if this is needed in this new version
-                    'about_id' => $params['about_id'] ?? null,
-                    'about_type' => $params['about_type'] ?? null,
-                    'custom_message' => ContentReplacer::setText($this->communication->content)->replace(CommunicationType::DATABASE),
-                    'custom_button_text' => ContentReplacer::setText($this->custom_button_text)->replace(CommunicationType::DATABASE),
-                    'custom_button_href' => ContentReplacer::setText($this->custom_button_href)->replace(CommunicationType::DATABASE),
-                    'has_reminder_button' => $this->has_reminder_button,
-                    'custom_button_handler' => $this->custom_button_handler,
-                ];
-            }
+            });
         }
 
         Notification::insert($notifications);    

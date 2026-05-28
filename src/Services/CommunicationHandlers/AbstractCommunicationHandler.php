@@ -165,4 +165,35 @@ abstract class AbstractCommunicationHandler
     {
         return ['subject', 'content'];
     }
+
+    // LOCALE
+
+    /**
+     * Run $callback with the locale temporarily switched to the recipient's preferredLocale().
+     * Restores the previous locale even if $callback throws.
+     *
+     * Public static so it can be invoked from outside the handler hierarchy
+     * (e.g. from NotificationTemplate::sendNotification).
+     *
+     * @param mixed $communicable
+     * @param callable $callback
+     * @return mixed
+     */
+    public static function withRecipientLocale($communicable, callable $callback)
+    {
+        if (!$communicable instanceof \Illuminate\Contracts\Translation\HasLocalePreference) {
+            return $callback();
+        }
+        $locale = $communicable->preferredLocale();
+        if (!$locale) {
+            return $callback();
+        }
+        $previous = app()->getLocale();
+        app()->setLocale($locale);
+        try {
+            return $callback();
+        } finally {
+            app()->setLocale($previous);
+        }
+    }
 }

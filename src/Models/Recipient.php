@@ -6,8 +6,9 @@ use Condoedge\Communications\Services\CommunicationHandlers\Contracts\ChannelAwa
 use Condoedge\Communications\Services\CommunicationHandlers\Contracts\EmailCommunicable;
 use Condoedge\Communications\Services\CommunicationHandlers\Contracts\SmsCommunicable;
 use Condoedge\Utils\Models\Model;
+use Illuminate\Contracts\Translation\HasLocalePreference;
 
-class Recipient extends Model implements EmailCommunicable, SmsCommunicable, ChannelAware
+class Recipient extends Model implements EmailCommunicable, SmsCommunicable, ChannelAware, HasLocalePreference
 {
     protected $table = 'communication_recipients';
 
@@ -77,6 +78,12 @@ class Recipient extends Model implements EmailCommunicable, SmsCommunicable, Cha
     public function label(): string
     {
         return $this->name ?: ($this->email ?: ($this->phone ?: ''));
+    }
+
+    // LOCALE
+    public function preferredLocale(): ?string
+    {
+        return $this->language;
     }
 
     // CHANNEL-AWARE

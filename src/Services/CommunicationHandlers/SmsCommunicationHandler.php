@@ -26,10 +26,19 @@ class SmsCommunicationHandler extends AbstractCommunicationHandler
     {
         $layout = $params['layout'] ?? DefaultLayoutSmsCommunicable::class;
 
-        $communicables = collect($communicables)->map(function($communicable) use ($layout, $params) {
-            $params = ContextEnhancer::setCommunicable($communicable)->getEnhancedContext($params);
+        foreach ($communicables as $communicable) {
+            self::withRecipientLocale($communicable, function () use ($communicable, $layout, $params) {
+                $perRecipientParams = ContextEnhancer::setCommunicable($communicable)->getEnhancedContext($params);
 
-            Notification::send($communicable->getPhone(), new $layout($this->communication, $params));
-        });
-    }   
+                $notification = new $layout($this->communication, $perRecipientParams);
+
+                if ($communicable instanceof \Illuminate\Contracts\Translation\HasLocalePreference
+                    && $locale = $communicable->preferredLocale()) {
+                    $notification = $notification->locale($locale);
+                }
+
+                Notification::send($communicable->getPhone(), $notification);
+            });
+        }
+    }
 }

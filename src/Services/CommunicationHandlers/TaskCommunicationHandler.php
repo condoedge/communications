@@ -39,6 +39,8 @@ class TaskCommunicationHandler extends AbstractCommunicationHandler
         $event = $params['trigger_instance'] ?? null;
 
         if ($event && $assignables = $event->sendToAnotherAssignables()) {
+            // NOTE: sendToAnotherAssignables is not a per-recipient flow (one task is created
+            // and assigned to many). Locale handling for this branch is a follow-up.
             $params = ContextEnhancer::setContext($params)->getEnhancedContext();
             $task = $this->createTaskWithDetail($params);
 
@@ -51,10 +53,12 @@ class TaskCommunicationHandler extends AbstractCommunicationHandler
         }
 
         collect($communicables)->map(function($communicable) use ($params, $event) {
-            $params = ContextEnhancer::setCommunicable($communicable)->setContext($params)->getEnhancedContext();
-            $task = $this->createTaskWithDetail($params, $communicable->getId());
-            
-            $this->linkTaskToRelatedTaskable($task, $event);
+            self::withRecipientLocale($communicable, function () use ($communicable, $params, $event) {
+                $params = ContextEnhancer::setCommunicable($communicable)->setContext($params)->getEnhancedContext();
+                $task = $this->createTaskWithDetail($params, $communicable->getId());
+
+                $this->linkTaskToRelatedTaskable($task, $event);
+            });
         });
     }
 
