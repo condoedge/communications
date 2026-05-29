@@ -14,7 +14,9 @@ return new class extends Migration
             $table->string('email')->nullable();
             $table->string('phone')->nullable();
             $table->string('name')->nullable();
-            $table->string('language')->nullable();
+            $table->string('language', 8)->nullable();
+
+            $table->foreignId('team_id')->constrained()->onDelete('cascade');
 
             $table->unique(['team_id', 'email'], 'communication_recipients_team_email_unique');
             $table->unique(['team_id', 'phone'], 'communication_recipients_team_phone_unique');
