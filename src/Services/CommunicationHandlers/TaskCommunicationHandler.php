@@ -92,13 +92,13 @@ class TaskCommunicationHandler extends AbstractCommunicationHandler
         $task->visibility = TaskVisibilityEnum::ALL;
         $task->assigned_to = $assignedTo;
         $task->team_id = $this->getTeamId($params);
-        $task->save();
+        $task->systemSave();
 
         $taskDetail = new TaskDetail();
         $taskDetail->task_id = $task->id;
         $taskDetail->setUserId(systemUserId()); // System id
         $taskDetail->details = $content;
-        $taskDetail->save();
+        $taskDetail->systemSave();
 
         return $task;
     }
