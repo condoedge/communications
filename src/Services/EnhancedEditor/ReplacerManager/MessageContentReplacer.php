@@ -5,7 +5,6 @@ namespace Condoedge\Communications\Services\EnhancedEditor\ReplacerManager;
 use Condoedge\Communications\Facades\Variables;
 use Condoedge\Communications\Models\CommunicationType;
 use Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\Contracts\MentionParserInterface;
-use Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\Parsers\HtmlMentionParser;
 use Illuminate\Support\Facades\Log;
 use ReflectionFunction;
 
@@ -164,8 +163,7 @@ class MessageContentReplacer
         [$id, $name, $classes, $automaticHandling] = $var;
 
         foreach ($this->parsers as $parser) {
-            $mentionFormat = $parser->getMentionFormat($id);
-            $exists = strpos($parsedText, $mentionFormat);
+            $exists = $parser->matchesMention($parsedText, $id);
 
             if ($exists !== false) {
                 $handler = $this->handlers[$id] ?? null;

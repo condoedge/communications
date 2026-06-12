@@ -12,6 +12,11 @@ class BraceMentionParser implements MentionParserInterface
         return '{{' . $varName . '}}';
     }
 
+    public function matchesMention(string $subject, string $varName): bool
+    {
+        return str_contains($subject, $this->getMentionFormat($varName));
+    }
+
     public function replaceMention(string $subject, string $varName, string $replaceWith): string
     {
         $mention = $this->getMentionFormat($varName);

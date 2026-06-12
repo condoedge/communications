@@ -12,6 +12,8 @@ interface MentionParserInterface
      */
     public function getMentionFormat(string $varName): string;
 
+    public function matchesMention(string $subject, string $varName): bool;
+
     /**
      * Replace mentions in text with values
      * 
