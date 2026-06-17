@@ -22,7 +22,8 @@ class CommunicationsList extends WhiteTable
                 // underlying methods delegate to TemplateSeedingService for parity with the command.
                 // _Button('communications.check-templates-triggers')->Outlined()->selfGet('checkDefaultTemplates')->inModal(),
                 // _Button('communications.create-default-templates')->Outlined()->selfPost('createDefaultTemplates')->alert('communications.template-created')->refresh(),
-                _Button('communications.create-communication')->selfGet('communicationTemplateForm')->inModal(),
+                _Button('communications.create-communication')->selfGet('communicationTemplateForm')->inModal()
+                    ->checkAuthWrite('communications'),
             )->class('gap-3'),
         )->class('mb-4');
     }
@@ -54,10 +55,11 @@ class CommunicationsList extends WhiteTable
             _Html(!$trigger ? '-' : $trigger::getName()),
             $this->getSendingTypesList($communicationGroup),
             _Flex(
-                _Delete($communicationGroup),
+                _Delete($communicationGroup)->checkAuthWrite('communications'),
                 _TripleDotsDropdown(
                     !method_exists($communicationGroup->trigger, 'manuallyForm') ? null
-                        : _Link('communications.manual-trigger')->class('px-2 py-1')->selfGet('getManuallyForm', ['trigger' => $trigger, 'communication_id' => $communicationGroup->id])->inModal(),
+                        : _Link('communications.manual-trigger')->class('px-2 py-1')->selfGet('getManuallyForm', ['trigger' => $trigger, 'communication_id' => $communicationGroup->id])->inModal()
+                            ->checkAuthWrite('communications'),
                 ),
             )->class('gap-1'),
         )->selfGet('communicationTemplateForm', ['communicationTemplateGroup' => $communicationGroup->id])->inModal();
@@ -83,11 +85,15 @@ class CommunicationsList extends WhiteTable
 
     public function getManuallyForm()
     {
+        abort_unless(checkAuthPermission('communications', \Kompo\Auth\Models\Teams\PermissionTypeEnum::WRITE), 403);
+
         return request('trigger')::manuallyForm(request('communication_id'));
     }
 
     public function communicationTemplateForm($groupId = null)
 	{
+		abort_unless(checkAuthPermission('communications', \Kompo\Auth\Models\Teams\PermissionTypeEnum::WRITE), 403);
+
 		return new CommunicationTemplateForm($groupId);
 	}
 
