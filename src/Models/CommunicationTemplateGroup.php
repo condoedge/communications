@@ -8,6 +8,8 @@ use Illuminate\Support\Collection;
 
 class CommunicationTemplateGroup extends Model
 {
+    use \Kompo\Auth\Models\Teams\BelongsToTeamTrait;
+
     // RELATIONSHIPS
     public function communicationTemplates()
     {
@@ -23,6 +25,19 @@ class CommunicationTemplateGroup extends Model
     public function findCommunicationTemplate($type)
     {
         return $this->communicationTemplates()->where('type', $type)->first();
+    }
+
+    public static function triggerName(?string $trigger): string
+    {
+        if ($trigger && class_exists($trigger) && method_exists($trigger, 'getName')) {
+            try {
+                return $trigger::getName() ?: '—';
+            } catch (\Throwable $e) {
+                return '—';
+            }
+        }
+
+        return '—';
     }
 
     // SCOPES
@@ -109,9 +124,57 @@ class CommunicationTemplateGroup extends Model
         return $communicationTemplate;
     }
 
+    /**
+     * Deep-clone this group as a private override owned by $teamId (copy & edit / disable flows).
+     *
+     * Replicates the group (stamping team_id, source_group_id = this->id, disabled = false) plus
+     * every CommunicationTemplate and its NotificationTemplate sidecar (DB-channel button handler),
+     * preserving the translatable subject/content/custom_button_text JSON. The clone is persisted
+     * before returning so the editor opens on real, saved rows (Kompo JSON-on-edit trap).
+     */
+    public function copyForTeam(int $teamId): self
+    {
+        // unique(team_id, trigger): a team owns at most one group per trigger. Fail fast with a
+        // clear message instead of letting the DB throw an opaque integrity violation.
+        $existing = static::query()->where('team_id', $teamId)
+            ->where('trigger', $this->trigger)->exists();
+
+        if ($existing) {
+            throw new \RuntimeException(
+                "Team {$teamId} already owns a communication template for trigger [{$this->trigger}]."
+            );
+        }
+
+        // A partial clone (group saved, templates half-written) would leave a broken override that
+        // the resolver would still pick up. Wrap the whole deep clone so it is all-or-nothing.
+        return \DB::transaction(function () use ($teamId) {
+            $clone = $this->replicate();
+            $clone->team_id = $teamId;
+            $clone->source_group_id = $this->id;
+            $clone->disabled = false;
+            $clone->save();
+
+            foreach ($this->communicationTemplates as $template) {
+                $templateClone = $template->replicate();
+                $templateClone->template_group_id = $clone->id;
+                $templateClone->save();
+
+                NotificationTemplate::where('communication_id', $template->id)->get()
+                    ->each(function ($notificationTemplate) use ($templateClone) {
+                        $notificationClone = $notificationTemplate->replicate();
+                        $notificationClone->communication_id = $templateClone->id;
+                        $notificationClone->save();
+                    });
+            }
+
+            return $clone->refresh();
+        });
+    }
+
     public function deletable()
     {
-        return $this->team_id == auth()->user()->team_id;
+        // System baseline (team_id NULL) is never deletable by a team admin.
+        return $this->team_id && $this->team_id == currentTeamId();
     }
 
     public function delete()

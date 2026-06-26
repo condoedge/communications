@@ -27,6 +27,22 @@ enum CommunicationType: int
         };
     }
 
+    public static function labelFor(int|string|null $channel): string
+    {
+        return self::tryFrom((int) $channel)?->label() ?? '—';
+    }
+
+    /** Soft per-channel pill classes (light tint + matching text) so channels read at a glance. */
+    public function color(): string
+    {
+        return match ($this) {
+            self::EMAIL => 'bg-blue-100 text-blue-700',
+            self::SMS => 'bg-amber-100 text-amber-700',
+            self::DATABASE => 'bg-emerald-100 text-emerald-700',
+            self::TASK => 'bg-gray-100 text-gray-700',
+        };
+    }
+
     /**
      * Summary of handler
      * @param mixed \Condoedge\Communications\Models\Monitoring\CommunicationTemplate $communication Communication

@@ -51,6 +51,12 @@ class RecipientOverride implements
         return new self($inner);
     }
 
+    /** The wrapped recipient — used for send-log identity (person_id / morph). */
+    public function getInner(): Communicable
+    {
+        return $this->inner;
+    }
+
     public function withEmail(string $email): self
     {
         $this->overrides['email'] = $email;
