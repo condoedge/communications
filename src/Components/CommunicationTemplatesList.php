@@ -46,6 +46,12 @@ class CommunicationTemplatesList extends WhiteTable
         return _Rows(
             _Html('communications.internal-events-help')->class('text-sm text-gray-500 mb-3'),
             _FlexEnd(
+                _Toggle('translate.show-only-pending-to-configure')
+                    ->class('[&>label]:min-w-max')
+                    ->name('not_owned', false)
+                    ->filter(),
+            ),
+            _FlexEnd(
                 _Input()
                     ->placeholder('communications.search-templates')
                     ->name('search', false)
@@ -58,7 +64,7 @@ class CommunicationTemplatesList extends WhiteTable
                     ->class('mb-0 w-full max-w-xs')
                     ->serverFilter()
                     ->config(['floatingOptions' => true]),
-            )->class('gap-3 items-end flex-wrap'),
+            )->class('gap-3 flex-wrap '),
         )->class('mb-4');
     }
 
@@ -73,6 +79,7 @@ class CommunicationTemplatesList extends WhiteTable
             ->reject(fn ($trigger) => $trigger === ManualTrigger::class)
             ->filter(fn ($trigger) => $search === '' || str_contains(mb_strtolower($trigger::getName()), $search))
             ->filter(fn ($trigger) => blank($group) || optional($this->groups->groupFor($trigger))->value() === $group)
+            ->when(request('not_owned', false), fn ($c) => $c->reject(fn ($trigger) => $this->ownGroupFor($trigger) !== null))
             ->values();
     }
 
