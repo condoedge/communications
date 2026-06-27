@@ -90,7 +90,15 @@ class CommunicationTriggeredListener implements ShouldQueue
             ->whereIn('id', $event->getSpecificCommunicationsIds())
             ->get();
 
-        $groups->each->notify($event->getCommunicables(), null, $params);
+        // The manual path has no per-recipient team resolution, so stamp each send with its group's
+        // own team — that is the sending team — so it shows in that team's send log / overview.
+        $groups->each(function ($group) use ($event, $params) {
+            $group->notify(
+                $event->getCommunicables(),
+                null,
+                array_merge($params, ['team_id' => $group->team_id]),
+            );
+        });
     }
 
     /**

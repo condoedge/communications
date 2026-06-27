@@ -27,6 +27,7 @@ class CommunicationTemplatesList extends WhiteTable
 {
     public $id = 'communication-templates-table';
 
+    protected $isResponsive = true;
     protected $teamId;
     protected $permissionKey = 'Communication';
     protected EffectiveTemplateResolverContract $resolver;

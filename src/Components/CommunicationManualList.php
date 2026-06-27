@@ -20,6 +20,7 @@ class CommunicationManualList extends WhiteTable
 
     protected $teamId;
     protected $permissionKey = 'Communication';
+    protected $isResponsive = true;
 
     public function created()
     {
