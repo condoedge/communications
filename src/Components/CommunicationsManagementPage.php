@@ -34,6 +34,9 @@ class CommunicationsManagementPage extends Form
                 _LazyTab(fn () => new CommunicationTemplatesList(['team_id' => $teamId]), 'table')
                     ->id('templates')->label('communications.tab-templates')
                     ->checkAuthWrite($this->permissionKey, specificTeamId: $this->teamId, returnNullInstead: true),
+                _LazyTab(fn () => new CommunicationManualList(['team_id' => $teamId]), 'table')
+                    ->id('manual')->label('communications.tab-manual')
+                    ->checkAuthWrite($this->permissionKey, specificTeamId: $this->teamId, returnNullInstead: true),
                 _LazyTab(fn () => new CommunicationSendLogList(['team_id' => $teamId]), 'table')
                     ->id('send-log')->label('communications.tab-send-log'),
                 _LazyTab(fn () => new CommunicationByTriggerList(['team_id' => $teamId]), 'table')

@@ -115,10 +115,20 @@ class CommunicationTemplateGroup extends Model
                 return null;
             }
 
-            $type->handler(null)->save($communicationTemplate->id, [
+            $attributes = [
                 'subject' => collect(array_keys(config('kompo.locales')))->mapWithKeys(fn($locale) => [$locale => $communicationTemplate->title]),
                 'content' => $content->toArray(),
-            ]);
+            ];
+
+            // A database notification's CTA lives on its button, not the body. When the trigger
+            // declares a default button handler, seed it on the DATABASE template.
+            if ($type === CommunicationType::DATABASE
+                && method_exists($trigger, 'defaultNotificationButtonHandler')
+                && ($handler = $trigger::defaultNotificationButtonHandler())) {
+                $attributes['custom_button_handler'] = $handler;
+            }
+
+            $type->handler(null)->save($communicationTemplate->id, $attributes);
         });
 
         return $communicationTemplate;
@@ -134,8 +144,8 @@ class CommunicationTemplateGroup extends Model
      */
     public function copyForTeam(int $teamId): self
     {
-        // unique(team_id, trigger): a team owns at most one group per trigger. Fail fast with a
-        // clear message instead of letting the DB throw an opaque integrity violation.
+        // One group per team per trigger — app-enforced (the DB unique was relaxed so a team can own
+        // several manual communications). Fail fast with a clear message on a duplicate internal copy.
         $existing = static::query()->where('team_id', $teamId)
             ->where('trigger', $this->trigger)->exists();
 

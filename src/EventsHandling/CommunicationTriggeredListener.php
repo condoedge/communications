@@ -12,6 +12,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Kompo\Auth\Models\Plugins\HasSecurity;
 
 class CommunicationTriggeredListener implements ShouldQueue
 {
@@ -30,6 +31,10 @@ class CommunicationTriggeredListener implements ShouldQueue
      */
     public function handle(CommunicableEvent $event)
     {
+        // The communications are a safe controlated place, since admins set which info to show in them.
+        // So we ensure that the comms listener runs in a bypass context, so it can read all the data it needs to build the comms.
+        HasSecurity::enterBypassContext();
+
         Log::info('Handling communication triggered event', ['event' => get_class($event)]);
 
         // Manual / direct-usage sends pick explicit group ids and bypass team resolution entirely.
@@ -67,6 +72,8 @@ class CommunicationTriggeredListener implements ShouldQueue
                     $teamId
                 );
             });
+
+        HasSecurity::exitBypassContext();
     }
 
     /**
@@ -87,11 +94,14 @@ class CommunicationTriggeredListener implements ShouldQueue
     }
 
     /**
-     * Derive the recipient's team for resolution:
-     *   1. explicit hook getCommunicationTeamId()  (preferred — RecipientOverride / DTO carriers)
-     *   2. a plain team_id attribute on the communicable
-     *   3. $params['team_id'] (event-level fallback)
-     *   4. null  -> the global system-baseline bucket
+     * Derive the team this send routes to (template resolution + send-log scoping):
+     *   1. explicit hook getCommunicationTeamId() on the communicable
+     *   2. a team_id attribute on the communicable
+     *   3. event-level $params: team_id, then the team object, then the first teams_ids
+     *   4. null -> the system-baseline bucket
+     *
+     * Targeted triggers carry their subject team on the event ($params['team'] / 'teams_ids'),
+     * not the recipient — a Person/User belongs to many teams.
      */
     protected function teamIdFor($communicable, array $params): ?int
     {
@@ -113,6 +123,15 @@ class CommunicationTriggeredListener implements ShouldQueue
 
         if (isset($params['team_id'])) {
             return (int) $params['team_id'];
+        }
+
+        $team = $params['team'] ?? null;
+        if (is_object($team) && isset($team->id)) {
+            return (int) $team->id;
+        }
+
+        if (!empty($params['teams_ids'])) {
+            return (int) collect($params['teams_ids'])->first();
         }
 
         return null;

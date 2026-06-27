@@ -43,20 +43,23 @@ class CommunicationTemplatesList extends WhiteTable
 
     public function top()
     {
-        return _FlexEnd(
-            _Input()
-                ->placeholder('communications.search-templates')
-                ->name('search', false)
-                ->class('mb-0 w-full max-w-md')
-                ->serverFilter(),
-            !$this->hasGroups ? null : _Select()
-                ->placeholder('communications.all-groups')
-                ->name('group', false)
-                ->options($this->groups->options())
-                ->class('mb-0 w-full max-w-xs')
-                ->serverFilter()
-                ->config(['floatingOptions' => true]),
-        )->class('gap-3 mb-4 items-end flex-wrap');
+        return _Rows(
+            _Html('communications.internal-events-help')->class('text-sm text-gray-500 mb-3'),
+            _FlexEnd(
+                _Input()
+                    ->placeholder('communications.search-templates')
+                    ->name('search', false)
+                    ->class('mb-0 w-full max-w-md')
+                    ->serverFilter(),
+                !$this->hasGroups ? null : _Select()
+                    ->placeholder('communications.all-groups')
+                    ->name('group', false)
+                    ->options($this->groups->options())
+                    ->class('mb-0 w-full max-w-xs')
+                    ->serverFilter()
+                    ->config(['floatingOptions' => true]),
+            )->class('gap-3 items-end flex-wrap'),
+        )->class('mb-4');
     }
 
     public function query()
