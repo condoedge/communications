@@ -5,6 +5,7 @@ namespace Condoedge\Communications\EventsHandling;
 use Condoedge\Communications\EventsHandling\Contracts\CommunicableEvent;
 use Condoedge\Communications\Facades\ContextEnhancer;
 use Condoedge\Communications\Models\CommunicationTemplateGroup;
+use Condoedge\Communications\Services\CommunicationHandlers\Contracts\HasCommunicationTeam;
 use Condoedge\Communications\Services\Dispatch\CommunicationDispatchServiceContract;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\Eloquent\Model as EloquentModel;
@@ -102,31 +103,27 @@ class CommunicationTriggeredListener implements ShouldQueue
     }
 
     /**
-     * Derive the team this send routes to (template resolution + send-log scoping):
-     *   1. explicit hook getCommunicationTeamId() on the communicable
-     *   2. a team_id attribute on the communicable
-     *   3. event-level $params: team_id, then the team object, then the first teams_ids
-     *   4. null -> the system-baseline bucket
+     * Derive the team this send routes to (template resolution + send-log / stats scoping):
+     *   1. explicit hook getCommunicationTeamId() — the authoritative source (e.g. rolls a set of
+     *      unit teams up to their owning parent).
+     *   2. the EVENT's subject team ($params['team_id'], then the $params['team'] object) — a comm
+     *      is usually about an event in a team, not about the recipient.
+     *   3. the recipient's own team_id — last resort only, since a Person/User belongs to many teams.
+     *   4. null -> the system-baseline bucket.
      *
-     * Targeted triggers carry their subject team on the event ($params['team'] / 'teams_ids'),
-     * not the recipient — a Person/User belongs to many teams.
+     * There is no teams_ids fallback: picking the first of several teams silently misattributes the
+     * send. When an event spans many teams, the owning team (their common parent) must come from the
+     * explicit hook in (1).
      */
     protected function teamIdFor($communicable, array $params): ?int
     {
-        if (is_object($communicable) && method_exists($communicable, 'getCommunicationTeamId')) {
+        if ($communicable instanceof HasCommunicationTeam
+            || (is_object($communicable) && method_exists($communicable, 'getCommunicationTeamId'))) {
             $teamId = $communicable->getCommunicationTeamId();
 
             if ($teamId !== null) {
                 return (int) $teamId;
             }
-        }
-
-        if ($communicable instanceof EloquentModel && $communicable->getAttribute('team_id') !== null) {
-            return (int) $communicable->getAttribute('team_id');
-        }
-
-        if (is_object($communicable) && isset($communicable->team_id)) {
-            return (int) $communicable->team_id;
         }
 
         if (isset($params['team_id'])) {
@@ -138,8 +135,12 @@ class CommunicationTriggeredListener implements ShouldQueue
             return (int) $team->id;
         }
 
-        if (!empty($params['teams_ids'])) {
-            return (int) collect($params['teams_ids'])->first();
+        if ($communicable instanceof EloquentModel && $communicable->getAttribute('team_id') !== null) {
+            return (int) $communicable->getAttribute('team_id');
+        }
+
+        if (is_object($communicable) && isset($communicable->team_id)) {
+            return (int) $communicable->team_id;
         }
 
         return null;

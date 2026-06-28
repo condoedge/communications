@@ -75,11 +75,10 @@ class CommunicationSendLogList extends WhiteTable
             ->join('communication_sendings', 'communication_sendings.id', '=', 'communication_sending_recipients.communication_sending_id')
             ->whereNull('communication_sending_recipients.deleted_at')
             ->whereIn('communication_sending_recipients.team_id', $this->subtreeIds ?: [-1])
-            ->with('person')
             ->when(request('status'), fn ($q, $status) => $q->where('communication_sending_recipients.status', $status))
             ->when(request('search'), fn ($q, $search) => $q->where(fn ($w) => $w
                 ->where('communication_sending_recipients.email', 'like', '%' . $search . '%')
-                ->orWhereHas('person', fn ($pq) => $pq->search($search))))
+                ->orWhere('communication_sending_recipients.name', 'like', '%' . $search . '%')))
             ->orderByDesc('communication_sending_recipients.id')
             ->select(
                 'communication_sending_recipients.*',
@@ -93,7 +92,7 @@ class CommunicationSendLogList extends WhiteTable
         $row = _TableRow(
             _Html(communicationDateTime($recipient->sent_at))->class('text-sm'),
             _Rows(
-                _Html($recipient->person?->full_name ?: '—')->class('font-medium'),
+                _Html($recipient->name ?: '—')->class('font-medium'),
                 _Html($recipient->email ?: '—')->class('text-sm text-gray-500'),
             ),
             _Html(CommunicationTemplateGroup::triggerName($recipient->sending_trigger)),

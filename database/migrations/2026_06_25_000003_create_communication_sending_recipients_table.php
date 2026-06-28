@@ -21,9 +21,12 @@ return new class extends Migration
                 ->constrained('communication_sendings', 'id', 'csr_sending_fk')
                 ->cascadeOnDelete();
 
-            // Resolved Person recipient (when known) + ad-hoc morph (Recipient / User / ...).
+            // Abstract recipient morph (Person / User / Recipient / ...) — no CRM concern leaks in.
             $table->nullableMorphs('recipient', 'csr_recipient_idx');
 
+            // Denormalized display label + email captured at send time: the log is a historical
+            // snapshot, so it reads with zero relation loads and survives the recipient's deletion.
+            $table->string('name')->nullable();
             $table->string('email')->nullable();
             $table->foreignId('team_id')->nullable()
                 ->constrained('teams', 'id', 'csr_team_fk')->nullOnDelete();

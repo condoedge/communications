@@ -19,7 +19,7 @@ class CommunicationSendingModal extends Form
 
     public function created()
     {
-        $this->sending = CommunicationSending::with('recipients.person')->findOrFail($this->prop('id') ?? $this->model->id);
+        $this->sending = CommunicationSending::with('recipients')->findOrFail($this->prop('id') ?? $this->model->id);
     }
 
     public function render()
@@ -35,7 +35,7 @@ class CommunicationSendingModal extends Form
             _Rows(
                 $this->sending->recipients->map(fn ($recipient) => _FlexBetween(
                     _Rows(
-                        _Html($recipient->person?->full_name ?: '—')->class('font-medium'),
+                        _Html($recipient->name ?: '—')->class('font-medium'),
                         _Html($recipient->email ?: '—')->class('text-sm text-gray-500'),
                     ),
                     $this->statusPill($recipient->status),

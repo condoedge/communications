@@ -60,6 +60,7 @@ class CommunicationSending extends Model
             $row = new CommunicationSendingRecipient;
             $row->communication_sending_id = $this->id;
             $row->status = CommunicationSendingRecipientStatus::PENDING;
+            $row->name = static::safeName($communicable);
             $row->email = static::safeEmail($communicable);
             $row->team_id = $paramsTeamId ?? (is_object($identity) ? ($identity->team_id ?? null) : null);
 
@@ -113,6 +114,22 @@ class CommunicationSending extends Model
             }
         } catch (\Throwable $e) {
             // tolerate communicables whose getEmail() throws (recorded as a null-email row).
+        }
+
+        return null;
+    }
+
+    protected static function safeName($communicable): ?string
+    {
+        // label() is the abstract Communicable display name — keeps CRM (Person) out of the log.
+        try {
+            if (is_object($communicable) && method_exists($communicable, 'label')) {
+                $label = $communicable->label();
+
+                return $label !== null ? (string) $label : null;
+            }
+        } catch (\Throwable $e) {
+            // tolerate communicables whose label() throws (recorded as a null-name row).
         }
 
         return null;
