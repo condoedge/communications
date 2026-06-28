@@ -34,21 +34,10 @@ class CommunicationSending extends Model
         $communicationSending = new static;
         $communicationSending->communication_template_id = $communicationTemplate->id;
         $communicationSending->status = CommunicationSendingStatus::PENDING;
-
-        // New send-log header fields (guarded so the writer keeps working before the A1 columns land).
-        if (Schema::hasColumn('communication_sendings', 'team_id')) {
-            $communicationSending->team_id = $paramsTeamId;
-        }
-        if (Schema::hasColumn('communication_sendings', 'trigger')) {
-            $communicationSending->trigger = $communicationTemplate->group?->trigger;
-        }
-        if (Schema::hasColumn('communication_sendings', 'channel')) {
-            $communicationSending->channel = $communicationTemplate->type?->value;
-        }
-        if (Schema::hasColumn('communication_sendings', 'recipients_count')) {
-            $communicationSending->recipients_count = $communicables->count();
-        }
-
+        $communicationSending->team_id = $paramsTeamId;
+        $communicationSending->trigger = $communicationTemplate->group?->trigger;
+        $communicationSending->channel = $communicationTemplate->type?->value;
+        $communicationSending->recipients_count = $communicables->count();
         $communicationSending->save();
 
         $communicationSending->writeRecipientRows($communicables, $paramsTeamId);
@@ -57,9 +46,7 @@ class CommunicationSending extends Model
     }
 
     /**
-     * One communication_sending_recipients row per communicable. Tolerant of mixed types:
-     * unwraps RecipientOverride-style wrappers for identity, guards getEmail(), and only sets
-     * person_id / morph when the underlying recipient is an Eloquent model.
+     * One communication_sending_recipients row per communicable.
      */
     protected function writeRecipientRows(Collection $communicables, $paramsTeamId): void
     {
@@ -78,10 +65,6 @@ class CommunicationSending extends Model
 
             if ($identity instanceof EloquentModel) {
                 $row->recipient()->associate($identity);
-
-                if (static::isPerson($identity)) {
-                    $row->person_id = $identity->getKey();
-                }
             }
 
             $row->save();
@@ -114,8 +97,7 @@ class CommunicationSending extends Model
     // HELPERS
     protected static function unwrapRecipient($communicable)
     {
-        // RecipientOverride wraps the real recipient; unwrap it so person_id / the
-        // morph point at the underlying model, not the send-time decorator.
+        // RecipientOverride wraps the real recipient; unwrap it so the morph points at the underlying model, not the send-time decorator.
         if ($communicable instanceof \Condoedge\Communications\Recipients\RecipientOverride) {
             return $communicable->getInner();
         }
@@ -134,17 +116,6 @@ class CommunicationSending extends Model
         }
 
         return null;
-    }
-
-    protected static function isPerson($identity): bool
-    {
-        if (!class_exists(\Condoedge\Crm\Facades\PersonModel::class)) {
-            return false;
-        }
-
-        $personClass = \Condoedge\Crm\Facades\PersonModel::getClass();
-
-        return $identity instanceof $personClass;
     }
 
     // ELEMENTS

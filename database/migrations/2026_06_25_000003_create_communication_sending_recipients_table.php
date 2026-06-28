@@ -22,8 +22,6 @@ return new class extends Migration
                 ->cascadeOnDelete();
 
             // Resolved Person recipient (when known) + ad-hoc morph (Recipient / User / ...).
-            $table->foreignId('person_id')->nullable()
-                ->constrained('persons', 'id', 'csr_person_fk')->nullOnDelete();
             $table->nullableMorphs('recipient', 'csr_recipient_idx');
 
             $table->string('email')->nullable();
