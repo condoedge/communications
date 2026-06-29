@@ -73,19 +73,13 @@ class CommunicationTemplate extends Model
         try {
             $this->getHandler()->notify($communicables, $params);
             $communicationSending->status = CommunicationSendingStatus::SENT;
-
-            if (Schema::hasColumn('communication_sendings', 'sent_at')) {
-                $communicationSending->sent_at = now();
-            }
+            $communicationSending->sent_at = now();
 
             $communicationSending->markRecipientsSent();
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::warning("Error sending communication: " . $e->getMessage(), $e->getTrace());
             $communicationSending->status = CommunicationSendingStatus::FAILED;
-
-            if (Schema::hasColumn('communication_sendings', 'error_message')) {
-                $communicationSending->error_message = mb_substr($e->getMessage(), 0, 1000);
-            }
+            $communicationSending->error_message = mb_substr($e->getMessage(), 0, 1000);
 
             $communicationSending->markRecipientsFailed();
         } finally {

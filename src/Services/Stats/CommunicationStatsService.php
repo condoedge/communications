@@ -3,10 +3,12 @@
 namespace Condoedge\Communications\Services\Stats;
 
 use Condoedge\Communications\Models\CommunicationSendingRecipientStatus;
-use Condoedge\Communications\Models\CommunicationTemplateGroup;
 use Condoedge\Communications\Services\Stats\Dto\StatsOverviewDto;
 use Condoedge\Communications\Services\Stats\Dto\TeamStatsDto;
 use Condoedge\Communications\Services\Stats\Dto\TriggerStatsDto;
+use Condoedge\Communications\Services\TemplateResolution\EffectiveTemplateResolverContract;
+use Condoedge\Communications\Services\TemplateResolution\EffectiveTemplateSource;
+use Condoedge\Communications\Triggers\ManualTrigger;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -15,17 +17,20 @@ use Kompo\Auth\Teams\Contracts\TeamHierarchyInterface;
 /**
  * Aggregates the per-recipient send log over a team subtree.
  *
- * Every metric is a conditional aggregate over communication_sending_recipients: each
- * per-status timestamp is denormalized so "opened" is `opened_at IS NOT NULL` with zero joins.
- * The single join to communication_sendings exists only to read the denormalized `trigger`.
+ * Every metric is a conditional aggregate over communication_sending_recipients: each per-status
+ * timestamp is denormalized so "opened" is `opened_at IS NOT NULL`. A recipient's teams live in the
+ * communication_sending_recipient_teams pivot, so a send relevant to several teams is counted once
+ * for totals (scoped via EXISTS) but appears under each team in the per-team breakdown (a pivot join).
  */
 class CommunicationStatsService implements CommunicationStatsServiceContract
 {
     protected const RECIPIENTS = 'communication_sending_recipients';
     protected const SENDINGS = 'communication_sendings';
+    protected const PIVOT = 'communication_sending_recipient_teams';
 
     public function __construct(
         protected TeamHierarchyInterface $hierarchy,
+        protected EffectiveTemplateResolverContract $resolver,
     ) {
     }
 
@@ -47,7 +52,8 @@ class CommunicationStatsService implements CommunicationStatsServiceContract
         $sent = (int) ($row->sent_count ?? 0);
         $opened = (int) ($row->opened_count ?? 0);
 
-        [$active, $disabled] = $this->triggerCounts($expanded);
+        // Anchor teams (not the expanded subtree): trigger state is resolved per viewing team.
+        [$active, $disabled] = $this->triggerCounts($teamIds);
 
         return new StatsOverviewDto(
             totalSent: $sent,
@@ -98,15 +104,20 @@ class CommunicationStatsService implements CommunicationStatsServiceContract
             return collect();
         }
 
-        return $this->scopedRecipients($expanded)
-            ->groupBy(self::RECIPIENTS . '.team_id')
-            ->selectRaw(self::RECIPIENTS . '.team_id as team_id')
+        // Join the team pivot: a recipient recorded against several in-scope teams is counted under
+        // each (these breakdown rows can sum past the deduped total — that is intentional).
+        return DB::table(self::RECIPIENTS)
+            ->whereNull(self::RECIPIENTS . '.deleted_at')
+            ->join(self::PIVOT, self::PIVOT . '.communication_sending_recipient_id', '=', self::RECIPIENTS . '.id')
+            ->whereIn(self::PIVOT . '.team_id', $expanded)
+            ->groupBy(self::PIVOT . '.team_id')
+            ->selectRaw(self::PIVOT . '.team_id as team_id')
             ->selectRaw($this->sentExpr() . ' as sent_count')
             ->selectRaw($this->failedExpr() . ' as failed_count')
             ->selectRaw($this->openedExpr() . ' as opened_count')
             ->get()
             ->map(fn ($r) => new TeamStatsDto(
-                teamId: $r->team_id !== null ? (int) $r->team_id : null,
+                teamId: (int) $r->team_id,
                 sent: (int) $r->sent_count,
                 failed: (int) $r->failed_count,
                 opened: (int) $r->opened_count,
@@ -132,13 +143,18 @@ class CommunicationStatsService implements CommunicationStatsServiceContract
     }
 
     /**
+     * Recipients with at least one team in scope. EXISTS against the pivot (not a join) so a recipient
+     * recorded against several in-scope teams is still counted once for totals.
+     *
      * @param int[] $expanded
      */
     protected function scopedRecipients(array $expanded): Builder
     {
         return DB::table(self::RECIPIENTS)
             ->whereNull(self::RECIPIENTS . '.deleted_at')
-            ->whereIn(self::RECIPIENTS . '.team_id', $expanded);
+            ->whereExists(fn ($query) => $query->from(self::PIVOT)
+                ->whereColumn(self::PIVOT . '.communication_sending_recipient_id', self::RECIPIENTS . '.id')
+                ->whereIn(self::PIVOT . '.team_id', $expanded));
     }
 
     protected function sentExpr(): string
@@ -166,21 +182,38 @@ class CommunicationStatsService implements CommunicationStatsServiceContract
     }
 
     /**
-     * @param int[] $expanded
+     * Active / disabled trigger counts as the resolver sees them for the anchor teams — the same
+     * decision the Templates tab and the runtime send path make. Resolving (rather than scanning raw
+     * group rows) means a trigger that is configured only on the system baseline still counts as
+     * active, and a closer DISABLED row correctly wins over a farther enabled one.
+     *
+     * Across multiple anchor teams a trigger is active if it resolves sendable for any of them, and
+     * disabled if any anchor resolves it DISABLED while none resolve it sendable.
+     *
+     * @param int[] $teamIds anchor teams (not the expanded subtree)
      * @return array{0:int,1:int} [activeTriggers, disabledTriggers]
      */
-    protected function triggerCounts(array $expanded): array
+    protected function triggerCounts(array $teamIds): array
     {
-        $groups = CommunicationTemplateGroup::query()
-            ->asSystemOperation()
-            ->whereIn('team_id', $expanded)
-            ->get(['trigger', 'disabled']);
+        $triggers = collect(config('kompo-communications.triggers', []))
+            ->reject(fn ($trigger) => $trigger === ManualTrigger::class)
+            ->unique()
+            ->values();
 
-        $disabled = $groups->where('disabled', true)->pluck('trigger')->unique();
-        $active = $groups->where('disabled', '!=', true)
-            ->pluck('trigger')->unique()
-            ->reject(fn ($t) => $disabled->contains($t));
+        $active = 0;
+        $disabled = 0;
 
-        return [$active->count(), $disabled->count()];
+        foreach ($triggers as $trigger) {
+            $resolutions = collect($teamIds)
+                ->map(fn ($teamId) => $this->resolver->resolve($trigger, (int) $teamId));
+
+            if ($resolutions->contains(fn ($resolution) => $resolution->isSendable())) {
+                $active++;
+            } elseif ($resolutions->contains(fn ($resolution) => $resolution->source === EffectiveTemplateSource::DISABLED)) {
+                $disabled++;
+            }
+        }
+
+        return [$active, $disabled];
     }
 }

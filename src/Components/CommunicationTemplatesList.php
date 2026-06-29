@@ -252,31 +252,11 @@ class CommunicationTemplatesList extends WhiteTable
                 : _Rows(
                     $channels->map(fn ($template, $i) => _Rows(
                         _Html($template->type->label())->class('font-semibold text-greenmain'),
-                        _Html($this->highlightLinkMentions((string) $template->subject, $template->type))->class('text-sm font-medium'),
-                        _Html($this->highlightLinkMentions((string) $template->content, $template->type))->class('text-sm text-gray-600'),
+                        _Html(ContentReplacer::highlightMentions((string) $template->subject))->class('text-sm font-medium'),
+                        _Html(ContentReplacer::highlightMentions((string) $template->content))->class('text-sm text-gray-600'),
                     )->class($i < $channels->count() - 1 ? 'border-b pb-3 mb-3' : '')),
                 ),
         )->class('p-6 max-w-2xl');
-    }
-
-    /**
-     * Style mentions that resolve to a link/button (a MailButton) as a CTA pill so the preview reads
-     * them as buttons. Which mentions are links is decided per channel type by the replacer itself
-     * (ContentReplacer::isLinkVariable) — no hardcoded id list. Non-link mentions are left untouched.
-     */
-    protected function highlightLinkMentions(string $html, CommunicationType $type): string
-    {
-        return preg_replace_callback(
-            '/<span\b[^>]*\bdata-mention=("|\')(?<id>[^"\']+)\1[^>]*>(?<label>.*?)<\/span>/si',
-            function ($m) use ($type) {
-                if (!ContentReplacer::isLinkVariable($m['id'], $type)) {
-                    return $m[0];
-                }
-
-                return '<span data-mention="' . $m['id'] . '" style="display:inline-block;background:#006241;color:#fff;padding:1px 10px;border-radius:9999px;font-weight:500;">' . $m['label'] . '</span>';
-            },
-            $html
-        ) ?? $html;
     }
 
     /** OWN only: suppress the trigger for this team and its subtree. */

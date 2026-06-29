@@ -5,8 +5,6 @@ namespace Condoedge\Communications\Services\EnhancedEditor\ReplacerManager;
 use Condoedge\Communications\Facades\Variables;
 use Condoedge\Communications\Models\CommunicationType;
 use Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\Contracts\MentionParserInterface;
-use Condoedge\Communications\Services\MailElements\MailButton;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use ReflectionFunction;
 
@@ -277,50 +275,17 @@ class MessageContentReplacer
     }
 
     /**
-     * Does this variable, for this channel type, render as a link/button (a MailButton)? The admin
-     * template preview uses it to flag CTA mentions without a hardcoded id list. Best-effort: the
-     * variable's handler runs with a tolerant preview context — the real $type, a permissive sentinel
-     * for every other argument — inside a rolled-back transaction + try/catch, so a handler that reads
-     * the DB (or trips over the sentinel) can neither fail the preview nor leak state.
+     * Wrap every variable mention in $html with a subtle preview tint. Each registered parser
+     * decorates its own mention format, so the visual layer never needs to know how a mention is
+     * represented — it just asks for the highlighted HTML.
      */
-    public function isLinkVariable(string $varId, ?CommunicationType $type = null): bool
+    public function highlightMentions(string $html): string
     {
-        return $this->buildVarPreview($varId, $type) instanceof MailButton;
-    }
-
-    protected function buildVarPreview(string $varId, ?CommunicationType $type)
-    {
-        $handler = $this->handlers[$varId] ?? null;
-
-        if (!$handler) {
-            return null;
+        foreach ($this->parsers as $parser) {
+            $html = $parser->highlightMentions($html);
         }
 
-        $args = $this->getPreviewArguments($handler, $type);
-
-        DB::beginTransaction();
-
-        try {
-            return $handler(...$args);
-        } catch (\Throwable $e) {
-            return null;
-        } finally {
-            DB::rollBack();
-        }
-    }
-
-    /** Real $type, the current context for a 'context' param, a permissive sentinel for everything else. */
-    protected function getPreviewArguments($handler, ?CommunicationType $type): array
-    {
-        $sentinel = new PreviewSentinel();
-
-        return collect((new ReflectionFunction($handler))->getParameters())
-            ->map(fn ($parameter) => match ($parameter->getName()) {
-                'type' => $type,
-                'context' => $this->context,
-                default => $sentinel,
-            })
-            ->all();
+        return $html;
     }
 
     public function getVarBuilt($varId, ?string $parserName = null)

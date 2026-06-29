@@ -23,11 +23,6 @@ class EffectiveTemplateResolver implements EffectiveTemplateResolverContract
 
     public function resolve(string $trigger, int $teamId): EffectiveTemplateResolution
     {
-        // Before the A1 team_id column lands there is no per-team scoping — only the baseline can apply.
-        if (!Schema::hasColumn('communication_template_groups', 'team_id')) {
-            return $this->fromSystemBaseline($trigger, $teamId);
-        }
-
         // getAncestorTeamIds is ROOT-first and INCLUDES self -> reverse() == closest-first [self, parent, .., root].
         $candidates = $this->hierarchy->getAncestorTeamIds($teamId)->reverse()->values();
 

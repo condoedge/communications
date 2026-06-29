@@ -2,9 +2,10 @@
 
 namespace Condoedge\Communications\Models;
 
+use Condoedge\Communications\Services\CommunicationHandlers\Contracts\EmailCommunicable;
+use Condoedge\Communications\Services\CommunicationHandlers\Contracts\HasCommunicationTeam;
 use Illuminate\Database\Eloquent\Model as EloquentModel;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Schema;
 use Condoedge\Utils\Models\Model;
 
 class CommunicationSending extends Model
@@ -30,6 +31,7 @@ class CommunicationSending extends Model
     {
         $communicables = collect($communicables)->values();
         $paramsTeamId = $params['team_id'] ?? null;
+        $communicationTeams = $params['communication_teams'] ?? [];
 
         $communicationSending = new static;
         $communicationSending->communication_template_id = $communicationTemplate->id;
@@ -40,44 +42,42 @@ class CommunicationSending extends Model
         $communicationSending->recipients_count = $communicables->count();
         $communicationSending->save();
 
-        $communicationSending->writeRecipientRows($communicables, $paramsTeamId);
+        $communicationSending->writeRecipientRows($communicables, $communicationTeams, $paramsTeamId);
 
         return $communicationSending;
     }
 
     /**
-     * One communication_sending_recipients row per communicable.
+     * One recipient row per communicable, plus a team pivot row per team the send is recorded against
+     * (the recipient's own declared teams when it implements HasCommunicationTeam, otherwise the
+     * communication's teams). A send relevant to several teams is therefore counted once but appears
+     * in each of them.
+     *
+     * @param int[] $communicationTeams
      */
-    protected function writeRecipientRows(Collection $communicables, $paramsTeamId): void
+    protected function writeRecipientRows(Collection $communicables, array $communicationTeams, ?int $templateTeamId): void
     {
-        if (!Schema::hasTable('communication_sending_recipients')) {
-            return;
-        }
-
         foreach ($communicables as $communicable) {
             $identity = static::unwrapRecipient($communicable);
 
             $row = new CommunicationSendingRecipient;
             $row->communication_sending_id = $this->id;
             $row->status = CommunicationSendingRecipientStatus::PENDING;
-            $row->name = static::safeName($communicable);
-            $row->email = static::safeEmail($communicable);
-            $row->team_id = $paramsTeamId ?? (is_object($identity) ? ($identity->team_id ?? null) : null);
+            $row->name = secureCall(fn () => (string) $communicable->label()) ?: null;
+            $row->email = secureCall(fn () => $communicable instanceof EmailCommunicable ? $communicable->getEmail() : null);
 
             if ($identity instanceof EloquentModel) {
                 $row->recipient()->associate($identity);
             }
 
             $row->save();
+
+            $row->recordTeams($this->teamsForRecipient($identity, $communicationTeams, $templateTeamId));
         }
     }
 
     public function markRecipientsSent(): void
     {
-        if (!Schema::hasTable('communication_sending_recipients')) {
-            return;
-        }
-
         $this->recipients()->update([
             'status' => CommunicationSendingRecipientStatus::SENT->value,
             'sent_at' => now(),
@@ -86,16 +86,31 @@ class CommunicationSending extends Model
 
     public function markRecipientsFailed(): void
     {
-        if (!Schema::hasTable('communication_sending_recipients')) {
-            return;
-        }
-
         $this->recipients()->update([
             'status' => CommunicationSendingRecipientStatus::FAILED->value,
         ]);
     }
 
     // HELPERS
+
+    /**
+     * The teams one recipient is recorded against: its own declaration wins (the "each recipient in a
+     * different team" case), else the communication's teams, else the sending's template team.
+     *
+     * @param int[] $communicationTeams
+     * @return int[]
+     */
+    protected function teamsForRecipient($identity, array $communicationTeams, ?int $templateTeamId): array
+    {
+        $teams = $identity instanceof HasCommunicationTeam ? $identity->getCommunicationTeamIds() : $communicationTeams;
+
+        if (empty($teams)) {
+            $teams = array_filter([$templateTeamId]);
+        }
+
+        return collect($teams)->map(fn ($id) => (int) $id)->filter()->unique()->values()->all();
+    }
+
     protected static function unwrapRecipient($communicable)
     {
         // RecipientOverride wraps the real recipient; unwrap it so the morph points at the underlying model, not the send-time decorator.
@@ -104,35 +119,6 @@ class CommunicationSending extends Model
         }
 
         return $communicable;
-    }
-
-    protected static function safeEmail($communicable): ?string
-    {
-        try {
-            if (is_object($communicable) && method_exists($communicable, 'getEmail')) {
-                return $communicable->getEmail();
-            }
-        } catch (\Throwable $e) {
-            // tolerate communicables whose getEmail() throws (recorded as a null-email row).
-        }
-
-        return null;
-    }
-
-    protected static function safeName($communicable): ?string
-    {
-        // label() is the abstract Communicable display name — keeps CRM (Person) out of the log.
-        try {
-            if (is_object($communicable) && method_exists($communicable, 'label')) {
-                $label = $communicable->label();
-
-                return $label !== null ? (string) $label : null;
-            }
-        } catch (\Throwable $e) {
-            // tolerate communicables whose label() throws (recorded as a null-name row).
-        }
-
-        return null;
     }
 
     // ELEMENTS

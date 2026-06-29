@@ -3,17 +3,15 @@
 namespace Condoedge\Communications\Services\CommunicationHandlers\Contracts;
 
 /**
- * Optional capability: a communicable that authoritatively declares which team a communication to
- * it should be attributed to (template resolution + send-log / stats scoping).
+ * Optional capability on a communicable (recipient): declare exactly which teams a communication to
+ * it should be recorded against, overriding the event's {@see TeamScopedCommunicableEvent} teams.
  *
- * This is the top-priority source in CommunicationTriggeredListener::teamIdFor(). A recipient
- * (Person / User) belongs to many teams, so their incidental `team_id` is the wrong axis — implement
- * this to return the real owning team, e.g. the common PARENT of several unit teams the event is
- * about, so the stat rolls up to that parent rather than scattering across units.
- *
- * Return null to defer to the event's team and the remaining fallbacks.
+ * Use it for the case where one send has recipients that each belong to different teams — e.g. a
+ * roster notice where every recipient is recorded only against their own team. Return [] to defer to
+ * the event's teams.
  */
 interface HasCommunicationTeam
 {
-    public function getCommunicationTeamId(): ?int;
+    /** @return int[] the team ids this recipient should be recorded against */
+    public function getCommunicationTeamIds(): array;
 }

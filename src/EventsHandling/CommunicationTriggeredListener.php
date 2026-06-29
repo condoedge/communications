@@ -3,9 +3,11 @@
 namespace Condoedge\Communications\EventsHandling;
 
 use Condoedge\Communications\EventsHandling\Contracts\CommunicableEvent;
+use Condoedge\Communications\EventsHandling\Contracts\TeamScopedCommunicableEvent;
 use Condoedge\Communications\Facades\ContextEnhancer;
 use Condoedge\Communications\Models\CommunicationTemplateGroup;
-use Condoedge\Communications\Services\CommunicationHandlers\Contracts\HasCommunicationTeam;
+use Condoedge\Communications\Recipients\RecipientOverride;
+use Condoedge\Communications\Services\CommunicationHandlers\Contracts\EmailCommunicable;
 use Condoedge\Communications\Services\Dispatch\CommunicationDispatchServiceContract;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\Eloquent\Model as EloquentModel;
@@ -23,58 +25,65 @@ class CommunicationTriggeredListener implements ShouldQueue
     protected const IDEMPOTENCY_TTL_MINUTES = 10;
 
     /**
-     * Route a fired trigger to the right template per recipient team.
+     * Route a fired trigger to its team(s) and send through the EffectiveTemplateResolver.
      *
-     * Real triggers: group the event's communicables by their recipient team and dispatch once per
-     * team through the EffectiveTemplateResolver, so per-team override/disable is honored at send
-     * time. Manual sends (ManualTrigger::getSpecificCommunicationsIds + direct_usage groups) keep
-     * their original "notify these specific groups" behavior untouched.
+     * Real triggers declare their teams via TeamScopedCommunicableEvent::getCommunicationTeams():
+     * exactly one team resolves that team's effective template (honoring its override / disable);
+     * several (a broadcast) or none fall back to the system baseline. The send is recorded against
+     * every targeted team — per recipient, see CommunicationSending::writeRecipientRows — counted
+     * once. Manual sends (ManualTrigger::getSpecificCommunicationsIds) keep their "notify these
+     * specific groups" path.
      */
     public function handle(CommunicableEvent $event)
     {
-        // The communications are a safe controlated place, since admins set which info to show in them.
-        // So we ensure that the comms listener runs in a bypass context, so it can read all the data it needs to build the comms.
+        // The communications are a safe, controlled place — admins set which info to show in them —
+        // so the listener runs in a bypass context to read all the data it needs to build the comms.
+        // finally{} guarantees the context is released on every exit (early return or thrown error),
+        // otherwise the bypass would leak into later jobs on a long-lived queue worker.
         HasSecurity::enterBypassContext();
 
-        Log::info('Handling communication triggered event', ['event' => get_class($event)]);
+        try {
+            Log::info('Handling communication triggered event', ['event' => get_class($event)]);
 
-        // Manual / direct-usage sends pick explicit group ids and bypass team resolution entirely.
-        if (method_exists($event, 'getSpecificCommunicationsIds')) {
-            $this->handleManual($event);
+            // Manual / direct-usage sends pick explicit group ids and bypass team resolution entirely.
+            if (method_exists($event, 'getSpecificCommunicationsIds')) {
+                $this->handleManual($event);
 
-            return;
+                return;
+            }
+
+            $communicables = collect($event->getCommunicables())->values();
+
+            if ($communicables->isEmpty()) {
+                return;
+            }
+
+            // Idempotency: skip a replay of the same (trigger + identity + recipient set). Cache::add is
+            // atomic on the shared store (Redis in prod), so concurrent queue retries collapse to one.
+            if (!$this->claimIdempotencyKey($event, $communicables)) {
+                Log::info('Skipping duplicate communication dispatch', ['event' => get_class($event)]);
+
+                return;
+            }
+
+            $teams = $event instanceof TeamScopedCommunicableEvent
+                ? collect($event->getCommunicationTeams())->map(fn ($id) => (int) $id)->filter()->unique()->values()->all()
+                : [];
+
+            // Exactly one team uses that team's effective template; several or none fall back to the
+            // baseline. Per-team appearance comes from the recipient team pivot, not from the template.
+            $templateTeamId = count($teams) === 1 ? $teams[0] : null;
+
+            app(CommunicationDispatchServiceContract::class)->dispatchForTrigger(
+                $event::class,
+                $event,
+                $communicables,
+                $templateTeamId,
+                $teams,
+            );
+        } finally {
+            HasSecurity::exitBypassContext();
         }
-
-        $communicables = collect($event->getCommunicables())->values();
-
-        if ($communicables->isEmpty()) {
-            return;
-        }
-
-        // Idempotency: skip a replay of the same (trigger + identity + recipient set). Cache::add is
-        // atomic on the shared store (Redis in prod), so concurrent queue retries collapse to one.
-        if (!$this->claimIdempotencyKey($event, $communicables)) {
-            Log::info('Skipping duplicate communication dispatch', ['event' => get_class($event)]);
-
-            return;
-        }
-
-        $dispatcher = app(CommunicationDispatchServiceContract::class);
-        $baseParams = $event->getParams();
-
-        $communicables
-            ->groupBy(fn ($communicable) => $this->teamIdFor($communicable, $baseParams) ?? '__none__')
-            ->each(function (Collection $people, $teamKey) use ($event, $dispatcher) {
-                $teamId = $teamKey === '__none__' ? null : (int) $teamKey;
-
-                $dispatcher->dispatchForTrigger(
-                    $event::class,
-                    new ScopedCommunicableEvent($event, $people->values()),
-                    $teamId
-                );
-            });
-
-        HasSecurity::exitBypassContext();
     }
 
     /**
@@ -97,53 +106,12 @@ class CommunicationTriggeredListener implements ShouldQueue
             $group->notify(
                 $event->getCommunicables(),
                 null,
-                array_merge($params, ['team_id' => $group->team_id]),
+                array_merge($params, [
+                    'team_id' => $group->team_id,
+                    'communication_teams' => array_filter([$group->team_id]),
+                ]),
             );
         });
-    }
-
-    /**
-     * Derive the team this send routes to (template resolution + send-log / stats scoping):
-     *   1. explicit hook getCommunicationTeamId() — the authoritative source (e.g. rolls a set of
-     *      unit teams up to their owning parent).
-     *   2. the EVENT's subject team ($params['team_id'], then the $params['team'] object) — a comm
-     *      is usually about an event in a team, not about the recipient.
-     *   3. the recipient's own team_id — last resort only, since a Person/User belongs to many teams.
-     *   4. null -> the system-baseline bucket.
-     *
-     * There is no teams_ids fallback: picking the first of several teams silently misattributes the
-     * send. When an event spans many teams, the owning team (their common parent) must come from the
-     * explicit hook in (1).
-     */
-    protected function teamIdFor($communicable, array $params): ?int
-    {
-        if ($communicable instanceof HasCommunicationTeam
-            || (is_object($communicable) && method_exists($communicable, 'getCommunicationTeamId'))) {
-            $teamId = $communicable->getCommunicationTeamId();
-
-            if ($teamId !== null) {
-                return (int) $teamId;
-            }
-        }
-
-        if (isset($params['team_id'])) {
-            return (int) $params['team_id'];
-        }
-
-        $team = $params['team'] ?? null;
-        if (is_object($team) && isset($team->id)) {
-            return (int) $team->id;
-        }
-
-        if ($communicable instanceof EloquentModel && $communicable->getAttribute('team_id') !== null) {
-            return (int) $communicable->getAttribute('team_id');
-        }
-
-        if (is_object($communicable) && isset($communicable->team_id)) {
-            return (int) $communicable->team_id;
-        }
-
-        return null;
     }
 
     /**
@@ -170,20 +138,32 @@ class CommunicationTriggeredListener implements ShouldQueue
         return Cache::add($key, true, now()->addMinutes(self::IDEMPOTENCY_TTL_MINUTES));
     }
 
+    /**
+     * A stable per-recipient identity for the idempotency signature — it MUST survive the queue's
+     * unserialize on retry, otherwise the dedup key changes and the "duplicate" sends again.
+     */
     protected function recipientSignature($communicable): string
     {
+        // Unwrap the send-time decorator so the same underlying recipient always hashes the same.
+        if ($communicable instanceof RecipientOverride) {
+            $communicable = $communicable->getInner();
+        }
+
         if ($communicable instanceof EloquentModel) {
             return get_class($communicable) . ':' . $communicable->getKey();
         }
 
-        if (is_object($communicable) && method_exists($communicable, 'getEmail')) {
-            try {
-                return 'email:' . $communicable->getEmail();
-            } catch (\Throwable $e) {
-                // fall through to object hash below
+        if ($communicable instanceof EmailCommunicable) {
+            $email = secureCall(fn () => $communicable->getEmail());
+
+            if ($email) {
+                return 'email:' . mb_strtolower((string) $email);
             }
         }
 
-        return 'obj:' . spl_object_hash($communicable);
+        // No stable key/email: hash the serialized state. Unlike spl_object_hash (a fresh per-instance
+        // pointer that differs after the queue re-unserializes the event on retry), serialize()
+        // reproduces the same bytes for the same object state, keeping dedup stable across retries.
+        return 'ser:' . (secureCall(fn () => md5(serialize($communicable))) ?? spl_object_hash($communicable));
     }
 }

@@ -74,7 +74,11 @@ class CommunicationSendLogList extends WhiteTable
         return CommunicationSendingRecipient::query()
             ->join('communication_sendings', 'communication_sendings.id', '=', 'communication_sending_recipients.communication_sending_id')
             ->whereNull('communication_sending_recipients.deleted_at')
-            ->whereIn('communication_sending_recipients.team_id', $this->subtreeIds ?: [-1])
+            // Scope through the team pivot: a recipient recorded against several teams shows when
+            // viewing any of them, once (EXISTS, not a join).
+            ->whereExists(fn ($q) => $q->from('communication_sending_recipient_teams')
+                ->whereColumn('communication_sending_recipient_teams.communication_sending_recipient_id', 'communication_sending_recipients.id')
+                ->whereIn('communication_sending_recipient_teams.team_id', $this->subtreeIds ?: [-1]))
             ->when(request('status'), fn ($q, $status) => $q->where('communication_sending_recipients.status', $status))
             ->when(request('search'), fn ($q, $search) => $q->where(fn ($w) => $w
                 ->where('communication_sending_recipients.email', 'like', '%' . $search . '%')

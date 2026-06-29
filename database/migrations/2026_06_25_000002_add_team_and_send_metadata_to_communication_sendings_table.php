@@ -9,44 +9,22 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('communication_sendings', function (Blueprint $table) {
-            if (!Schema::hasColumn('communication_sendings', 'team_id')) {
-                $table->foreignId('team_id')->nullable()->constrained('teams')->nullOnDelete();
-            }
-            if (!Schema::hasColumn('communication_sendings', 'trigger')) {
-                $table->string('trigger')->nullable();
-            }
-            if (!Schema::hasColumn('communication_sendings', 'channel')) {
-                // Denormalized CommunicationType.
-                $table->tinyInteger('channel')->nullable();
-            }
-            if (!Schema::hasColumn('communication_sendings', 'recipients_count')) {
-                $table->integer('recipients_count')->nullable();
-            }
-            if (!Schema::hasColumn('communication_sendings', 'error_message')) {
-                $table->text('error_message')->nullable();
-            }
-            // sent_at already added by 2024_11_08_000001.
+            $table->foreignId('team_id')->nullable()->constrained('teams')->nullOnDelete();
+            $table->string('trigger')->nullable();
+            $table->tinyInteger('channel')->nullable();
+            $table->integer('recipients_count')->nullable();
+            $table->text('error_message')->nullable();
         });
     }
 
     public function down(): void
     {
         Schema::table('communication_sendings', function (Blueprint $table) {
-            if (Schema::hasColumn('communication_sendings', 'error_message')) {
-                $table->dropColumn('error_message');
-            }
-            if (Schema::hasColumn('communication_sendings', 'recipients_count')) {
-                $table->dropColumn('recipients_count');
-            }
-            if (Schema::hasColumn('communication_sendings', 'channel')) {
-                $table->dropColumn('channel');
-            }
-            if (Schema::hasColumn('communication_sendings', 'trigger')) {
-                $table->dropColumn('trigger');
-            }
-            if (Schema::hasColumn('communication_sendings', 'team_id')) {
-                $table->dropConstrainedForeignId('team_id');
-            }
+            $table->dropColumn('error_message');
+            $table->dropColumn('recipients_count');
+            $table->dropColumn('channel');
+            $table->dropColumn('trigger');
+            $table->dropConstrainedForeignId('team_id');
         });
     }
 };

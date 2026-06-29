@@ -3,9 +3,9 @@
 namespace Condoedge\Communications\Services\Dispatch;
 
 use Condoedge\Communications\EventsHandling\Contracts\CommunicableEvent;
-use Condoedge\Communications\EventsHandling\ScopedCommunicableEvent;
 use Condoedge\Communications\Facades\ContextEnhancer;
 use Condoedge\Communications\Services\TemplateResolution\EffectiveTemplateResolverContract;
+use Illuminate\Support\Collection;
 
 class CommunicationDispatchService implements CommunicationDispatchServiceContract
 {
@@ -14,8 +14,13 @@ class CommunicationDispatchService implements CommunicationDispatchServiceContra
     ) {
     }
 
-    public function dispatchForTrigger(string $trigger, CommunicableEvent $event, ?int $teamId = null): void
-    {
+    public function dispatchForTrigger(
+        string $trigger,
+        CommunicableEvent $event,
+        array|Collection $communicables,
+        ?int $teamId = null,
+        array $communicationTeams = [],
+    ): void {
         // teamId null => the system-baseline bucket. resolve() with a non-existent team id (0) walks
         // an empty hierarchy and falls straight through to the team_id IS NULL baseline.
         $resolution = $this->resolver->resolve($trigger, $teamId ?? 0);
@@ -24,18 +29,15 @@ class CommunicationDispatchService implements CommunicationDispatchServiceContra
             return;
         }
 
-        // Channel handlers read $params['trigger_instance'] and type-hint the event's real contract
-        // (e.g. TaskCommunicationHandler needs a TaskCommunicableEvent), so expose the ORIGINAL event,
-        // not the per-team ScopedCommunicableEvent wrapper — only the communicables are scoped.
-        $triggerInstance = $event instanceof ScopedCommunicableEvent ? $event->getInnerEvent() : $event;
-
-        // team_id flows into the send-log header (A3) so each fire records the team it was sent for.
+        // team_id is the sending's template/header team; communication_teams is the full set the send
+        // is recorded against (the recipient team pivot) so it appears in every team, counted once.
         $params = ContextEnhancer::setContext(array_merge($event->getParams(), [
             'trigger' => $trigger,
-            'trigger_instance' => $triggerInstance,
+            'trigger_instance' => $event,
             'team_id' => $teamId,
+            'communication_teams' => $communicationTeams,
         ]))->getEnhancedContext();
 
-        $resolution->group->notify($event->getCommunicables(), null, $params);
+        $resolution->group->notify($communicables, null, $params);
     }
 }

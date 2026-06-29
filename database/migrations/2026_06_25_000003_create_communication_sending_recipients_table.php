@@ -28,8 +28,9 @@ return new class extends Migration
             // snapshot, so it reads with zero relation loads and survives the recipient's deletion.
             $table->string('name')->nullable();
             $table->string('email')->nullable();
-            $table->foreignId('team_id')->nullable()
-                ->constrained('teams', 'id', 'csr_team_fk')->nullOnDelete();
+
+            // The teams a recipient is recorded against live in communication_sending_recipient_teams
+            // (a send can appear in several teams, counted once) — see that table's migration.
 
             $table->tinyInteger('status')->nullable();
 
