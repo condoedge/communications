@@ -5,6 +5,7 @@ namespace Condoedge\Communications\Models;
 use Condoedge\Communications\Facades\ContentReplacer;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Condoedge\Utils\Models\Model;
 
 class CommunicationTemplate extends Model
@@ -72,9 +73,15 @@ class CommunicationTemplate extends Model
         try {
             $this->getHandler()->notify($communicables, $params);
             $communicationSending->status = CommunicationSendingStatus::SENT;
-        } catch (\Exception $e) {
+            $communicationSending->sent_at = now();
+
+            $communicationSending->markRecipientsSent();
+        } catch (\Throwable $e) {
             Log::warning("Error sending communication: " . $e->getMessage(), $e->getTrace());
             $communicationSending->status = CommunicationSendingStatus::FAILED;
+            $communicationSending->error_message = mb_substr($e->getMessage(), 0, 1000);
+
+            $communicationSending->markRecipientsFailed();
         } finally {
             $communicationSending->save();
         }

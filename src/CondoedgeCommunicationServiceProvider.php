@@ -89,6 +89,36 @@ class CondoedgeCommunicationServiceProvider extends ServiceProvider
 
         $this->app->bind(TemplateSeedingServiceContract::class, TemplateSeedingService::class);
 
+        // Team-inheritance template resolution: pure resolver wrapped in a per-request cache
+        // decorator (mirrors the Cached* / AuthCacheLayer pattern). The cache flushes at request
+        // termination via the auth provider's lifecycle cleanup.
+        $this->app->singleton(\Condoedge\Communications\Services\TemplateResolution\EffectiveTemplateResolver::class);
+
+        $this->app->singleton(
+            \Condoedge\Communications\Services\TemplateResolution\EffectiveTemplateResolverContract::class,
+            fn ($app) => new \Condoedge\Communications\Services\TemplateResolution\CachedEffectiveTemplateResolver(
+                $app->make(\Condoedge\Communications\Services\TemplateResolution\EffectiveTemplateResolver::class),
+                $app->make(\Kompo\Auth\Teams\Cache\AuthCacheLayer::class),
+            )
+        );
+
+        $this->app->bind(
+            \Condoedge\Communications\Services\Stats\CommunicationStatsServiceContract::class,
+            \Condoedge\Communications\Services\Stats\CommunicationStatsService::class
+        );
+
+        // No trigger grouping by default — the admin Templates tab hides the group column + filter.
+        // A host app binds its own adapter over its domain grouping.
+        $this->app->bind(
+            \Condoedge\Communications\Services\Grouping\TriggerGroupResolverContract::class,
+            \Condoedge\Communications\Services\Grouping\NullTriggerGroupResolver::class
+        );
+
+        $this->app->bind(
+            \Condoedge\Communications\Services\Dispatch\CommunicationDispatchServiceContract::class,
+            \Condoedge\Communications\Services\Dispatch\CommunicationDispatchService::class
+        );
+
         ContentReplacer::setPostProcessors([
             function ($result) {
                 if ($result instanceof MailElement) {
