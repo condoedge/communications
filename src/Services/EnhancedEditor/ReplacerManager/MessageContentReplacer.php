@@ -274,6 +274,20 @@ class MessageContentReplacer
         }
     }
 
+    /**
+     * Wrap every variable mention in $html with a subtle preview tint. Each registered parser
+     * decorates its own mention format, so the visual layer never needs to know how a mention is
+     * represented — it just asks for the highlighted HTML.
+     */
+    public function highlightMentions(string $html): string
+    {
+        foreach ($this->parsers as $parser) {
+            $html = $parser->highlightMentions($html);
+        }
+
+        return $html;
+    }
+
     public function getVarBuilt($varId, ?string $parserName = null)
     {
         if ($parserName) {

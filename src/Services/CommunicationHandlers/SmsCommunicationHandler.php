@@ -37,7 +37,13 @@ class SmsCommunicationHandler extends AbstractCommunicationHandler
                     $notification = $notification->locale($locale);
                 }
 
-                Notification::send($communicable->getPhone(), $notification);
+                $phone = $communicable->getPhone();
+
+                if (!$phone) {
+                    return;
+                }
+
+                Notification::route('vonage', $phone)->notify($notification);
             });
         }
     }

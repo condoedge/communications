@@ -49,6 +49,11 @@ class GenericManualTriggerForm extends Modal
         );
     }
 
+    public function footer()
+    {
+        return null;
+    }
+
     public function selectCommunicables()
     {
         return _MultiSelect('communications.select-communicables')->name(name: 'communicables_ids')
