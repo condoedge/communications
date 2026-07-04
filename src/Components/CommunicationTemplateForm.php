@@ -71,6 +71,7 @@ class CommunicationTemplateForm extends Modal
                 _Input('Name')->name('title'),
 
                 _Select('trigger')->name('trigger')
+                    ->config(['floatingOptions' => true])
                     ->options(collect(CommunicationTemplateGroup::getTriggers())->mapWithKeys(fn($trigger) => [$trigger => $trigger::getName()]))
                     ->selfPost('saveAndGetNewForm')
                     ->inPanel('communication-type-form')
