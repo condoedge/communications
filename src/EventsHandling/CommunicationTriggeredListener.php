@@ -154,7 +154,7 @@ class CommunicationTriggeredListener implements ShouldQueue
         }
 
         if ($communicable instanceof EmailCommunicable) {
-            $email = secureCall(fn () => $communicable->getEmail());
+            $email = secureCallCb(fn () => $communicable->getEmail());
 
             if ($email) {
                 return 'email:' . mb_strtolower((string) $email);
@@ -164,6 +164,6 @@ class CommunicationTriggeredListener implements ShouldQueue
         // No stable key/email: hash the serialized state. Unlike spl_object_hash (a fresh per-instance
         // pointer that differs after the queue re-unserializes the event on retry), serialize()
         // reproduces the same bytes for the same object state, keeping dedup stable across retries.
-        return 'ser:' . (secureCall(fn () => md5(serialize($communicable))) ?? spl_object_hash($communicable));
+        return 'ser:' . (secureCallCb(fn () => md5(serialize($communicable))) ?? spl_object_hash($communicable));
     }
 }

@@ -63,8 +63,9 @@ class CommunicationSending extends Model
             $row = new CommunicationSendingRecipient;
             $row->communication_sending_id = $this->id;
             $row->status = CommunicationSendingRecipientStatus::PENDING;
-            $row->name = secureCall(fn () => (string) $communicable->label()) ?: null;
-            $row->email = secureCall(fn () => $communicable instanceof EmailCommunicable ? $communicable->getEmail() : null);
+            $row->name = secureCallCb(fn () => (string) $communicable->label()) ?: null;
+            // Maybe it should be more abstract and just call a generic method that fills a "contact_info" field. This is something pending to change
+            $row->email = secureCallCb(fn () => $communicable instanceof EmailCommunicable ? $communicable->getEmail() : null);
 
             if ($identity instanceof EloquentModel) {
                 $row->recipient()->associate($identity);
