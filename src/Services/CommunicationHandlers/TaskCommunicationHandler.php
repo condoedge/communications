@@ -97,7 +97,7 @@ class TaskCommunicationHandler extends AbstractCommunicationHandler
         $taskDetail = new TaskDetail();
         $taskDetail->task_id = $task->id;
         $taskDetail->setUserId(systemUserId()); // System id
-        $taskDetail->details = $content;
+        $taskDetail->details = $content ?: '';
         $taskDetail->systemSave();
 
         return $task;

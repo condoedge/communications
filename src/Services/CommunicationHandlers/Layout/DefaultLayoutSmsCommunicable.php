@@ -2,13 +2,13 @@
 
 namespace Condoedge\Communications\Services\CommunicationHandlers\Layout;
 
-use Illuminate\Mail\Mailable;
 use Illuminate\Notifications\Messages\VonageMessage;
+use Illuminate\Notifications\Notification;
 
 /**
  * The wrapper for SMS sending of the communication
  */
-class DefaultLayoutSmsCommunicable extends Mailable
+class DefaultLayoutSmsCommunicable extends Notification
 {
     public $communication;
     public $params;
