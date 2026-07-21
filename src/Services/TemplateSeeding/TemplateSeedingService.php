@@ -4,13 +4,14 @@ namespace Condoedge\Communications\Services\TemplateSeeding;
 
 use Condoedge\Communications\Models\CommunicationTemplateGroup;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class TemplateSeedingService implements TemplateSeedingServiceContract
 {
     public function getMissingTriggers(): Collection
     {
         return collect(CommunicationTemplateGroup::getTriggers())
-            ->reject(fn ($trigger) => CommunicationTemplateGroup::where('trigger', $trigger)->exists())
+            ->reject(fn ($trigger) => $this->baselineExists($trigger))
             ->values();
     }
 
@@ -24,17 +25,36 @@ class TemplateSeedingService implements TemplateSeedingServiceContract
 
     public function seedForTrigger(string $trigger): ?CommunicationTemplateGroup
     {
-        if (CommunicationTemplateGroup::where('trigger', $trigger)->exists()) {
-            return null;
-        }
+        // Seeding targets the system baseline (team_id NULL) specifically, independent of whether a
+        // team already configured its own override. Scoping to the baseline is what makes this safe
+        // to run on every deploy: a team owning a group must not make the trigger look seeded and
+        // leave every other team resolving NONE.
+        return DB::transaction(function () use ($trigger) {
+            if ($this->baselineExists($trigger, lock: true)) {
+                return null;
+            }
 
-        $group = CommunicationTemplateGroup::createForTrigger($trigger);
+            $group = CommunicationTemplateGroup::createForTrigger($trigger);
 
-        if ($group) {
-            $this->applyDefaultButtonHandler($group, $trigger);
-        }
+            if ($group) {
+                $this->applyDefaultButtonHandler($group, $trigger);
+            }
 
-        return $group;
+            return $group;
+        });
+    }
+
+    /**
+     * Whether the system-baseline group already exists for the trigger. A disabled baseline still
+     * counts as existing, so re-seeding never revives one an admin turned off. The optional row lock
+     * closes the SELECT-then-INSERT window against concurrent deploys creating duplicate baselines.
+     */
+    protected function baselineExists(string $trigger, bool $lock = false): bool
+    {
+        return CommunicationTemplateGroup::where('trigger', $trigger)
+            ->whereNull('team_id')
+            ->when($lock, fn ($q) => $q->lockForUpdate())
+            ->exists();
     }
 
     /**
