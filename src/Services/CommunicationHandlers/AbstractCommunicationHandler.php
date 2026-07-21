@@ -3,6 +3,7 @@
 namespace Condoedge\Communications\Services\CommunicationHandlers;
 
 use Condoedge\Communications\EventsHandling\Contracts\CommunicableEvent;
+use Condoedge\Communications\Models\CommunicationSendingRecipientStatus;
 use Condoedge\Communications\Models\CommunicationTemplate;
 use Condoedge\Communications\Models\CommunicationType;
 use Condoedge\Communications\Services\CommunicationHandlers\Contracts\ChannelAware;
@@ -13,11 +14,13 @@ abstract class AbstractCommunicationHandler
 {
     protected CommunicationTemplate $communication;
     protected $type;
+    protected DeliveryReport $report;
 
     public function __construct(?CommunicationTemplate $communication, ?CommunicationType $type)
     {
         $this->communication = $communication ?? new CommunicationTemplate;
         $this->type = $type;
+        $this->report = new DeliveryReport;
     }
 
     /**
@@ -42,29 +45,78 @@ abstract class AbstractCommunicationHandler
     abstract public function notifyCommunicables(array $communicables, $params = []);
 
     /**
-     * Filter the communicables and notify them using `notifyCommunicables` method
+     * Filter the communicables and notify them using `notifyCommunicables` method.
+     *
+     * Returns what actually happened per recipient. Recipients dropped by the channel filter are
+     * reported SKIPPED rather than silently discarded, so they are never later stamped SENT.
+     *
      * @param array|\Illuminate\Database\Eloquent\Collection $communicables
      * @param mixed $params
-     * @return void
      */
-    final public function notify(array|Collection $communicables, $params = [])
+    final public function notify(array|Collection $communicables, $params = []): DeliveryReport
     {
+        $this->report = new DeliveryReport;
         $communicableInterface = $this->communicableInterface();
 
-        $communicables = collect($communicables)->filter(function ($c) use ($communicableInterface) {
+        // values() first so positions are 0..n-1, matching the rows CommunicationSending wrote.
+        // filter() preserves keys, so the surviving entries keep their original position.
+        $communicables = collect($communicables)->values()->filter(function ($c, $position) use ($communicableInterface) {
             if (!($c instanceof $communicableInterface)) {
                 Log::warning('Communicable does not implement the required interface: ' . $communicableInterface);
+                $this->report->skipped($position, 'does-not-implement-' . class_basename($communicableInterface));
+
                 return false;
             }
 
             if ($c instanceof ChannelAware && !$c->acceptsChannel($communicableInterface)) {
-                return false; // intentional suppression — no warning
+                $this->report->skipped($position, 'channel-not-accepted'); // intentional suppression — no warning
+
+                return false;
             }
 
             return true;
         });
 
         $this->notifyCommunicables($communicables->all(), $params);
+
+        return $this->report;
+    }
+
+    /**
+     * Deliver to each recipient in isolation: one failure is recorded against that recipient only
+     * and the rest of the list still goes out. Without this a throw partway through abandons every
+     * remaining recipient while the already-delivered ones get marked failed.
+     *
+     * The callback returns null when it delivered, or a short reason string when it chose not to
+     * (no phone number, opted out). $communicables must keep its original positional keys.
+     */
+    protected function sendEach(array $communicables, callable $send): void
+    {
+        foreach ($communicables as $position => $communicable) {
+            try {
+                $skipReason = self::withRecipientLocale($communicable, fn () => $send($communicable));
+
+                $skipReason === null
+                    ? $this->report->sent($position)
+                    : $this->report->skipped($position, is_string($skipReason) ? $skipReason : null);
+            } catch (\Throwable $e) {
+                Log::error('Communication delivery failed for a recipient', [
+                    'communication_id' => $this->communication->id,
+                    'channel' => $this->type?->value,
+                    'error' => $e->getMessage(),
+                ]);
+
+                $this->report->failed($position, $e->getMessage());
+            }
+        }
+    }
+
+    /** Record one status for every listed recipient, for channels that cannot report per recipient. */
+    protected function reportAll(array $communicables, CommunicationSendingRecipientStatus $status, ?string $detail = null): void
+    {
+        foreach (array_keys($communicables) as $position) {
+            $this->report->record($position, $status, $detail);
+        }
     }
 
     // COMMUNICATION SAVING

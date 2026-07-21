@@ -45,7 +45,6 @@ class CommunicationsOverview extends Form
             _MiniStatCard('communications.total-sent', $stats->totalSent, 'send-2', 'bg-greenmain'),
             _MiniStatCard('communications.failed', $stats->failed, 'danger', 'bg-danger'),
             _MiniStatCard('communications.last-30-days', $stats->last30d, 'calendar', 'bg-level1'),
-            _MiniStatCard('communications.open-rate', $stats->openRate . '%', 'eye', 'bg-info'),
             _MiniStatCard('communications.active-triggers', $stats->activeTriggers, 'flash', 'bg-positive'),
             _MiniStatCard('communications.disabled-triggers', $stats->disabledTriggers, 'slash', 'bg-warning'),
         )->class('gap-4 flex-wrap');

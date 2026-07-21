@@ -45,7 +45,7 @@ class CommunicationSendLogList extends WhiteTable
         }
 
         return _FlexEnd(
-            _Select()->options(CommunicationSendingRecipientStatus::optionsWithLabels())
+            _Select()->options(CommunicationSendingRecipientStatus::filterOptions())
                 ->placeholder('communications.filter-by-status')
                 ->name('status', false)
                 ->class('!mb-0 max-w-xs')

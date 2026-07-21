@@ -9,8 +9,8 @@ use Illuminate\Support\Collection;
 use Kompo\Auth\Facades\TeamModel;
 
 /**
- * Per-team rollup of the send log over the subtree (sent / failed / opened), one row per owning
- * team. Team names are preloaded once to keep render() free of per-row lookups.
+ * Per-team rollup of the send log over the subtree (sent / failed), one row per owning team.
+ * Team names are preloaded once to keep render() free of per-row lookups.
  */
 class CommunicationByTeamList extends WhiteTable
 {
@@ -40,7 +40,6 @@ class CommunicationByTeamList extends WhiteTable
             _Th('communications.team'),
             _Th('communications.sent'),
             _Th('communications.failed'),
-            _Th('communications.opened'),
         ];
     }
 
@@ -50,7 +49,6 @@ class CommunicationByTeamList extends WhiteTable
             _Html($this->teamLabel($row->teamId))->class('font-medium'),
             _Html((string) $row->sent),
             _Html((string) $row->failed)->class($row->failed > 0 ? 'text-danger' : ''),
-            _Html((string) $row->opened),
         );
     }
 

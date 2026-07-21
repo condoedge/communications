@@ -13,6 +13,27 @@ enum CommunicationSendingRecipientStatus: int
     case OPENED = 5;
     case CLICKED = 6;
     case BOUNCED = 7;
+    case SKIPPED = 8;
+
+    /**
+     * The statuses this package can actually set. The engagement cases below are kept for host apps
+     * and for a future provider-webhook integration, but nothing here writes them — offering them as
+     * filters would advertise a query that can never match a row.
+     *
+     * @return self[]
+     */
+    public static function writableCases(): array
+    {
+        return [self::PENDING, self::SENT, self::FAILED, self::SKIPPED];
+    }
+
+    /** Filter options limited to writableCases(): value => label. */
+    public static function filterOptions(): array
+    {
+        return collect(self::writableCases())
+            ->mapWithKeys(fn ($status) => [$status->value => $status->label()])
+            ->all();
+    }
 
     public function label()
     {
@@ -24,6 +45,7 @@ enum CommunicationSendingRecipientStatus: int
             self::OPENED => __('communications.opened'),
             self::CLICKED => __('communications.clicked'),
             self::BOUNCED => __('communications.bounced'),
+            self::SKIPPED => __('communications.skipped'),
         };
     }
 
@@ -34,6 +56,7 @@ enum CommunicationSendingRecipientStatus: int
             self::OPENED, self::CLICKED => 'bg-positive',
             self::FAILED, self::BOUNCED => 'bg-danger',
             self::PENDING => 'bg-warning',
+            self::SKIPPED => 'bg-gray-400',
         };
     }
 

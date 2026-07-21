@@ -41,12 +41,18 @@ class MessageContentReplacer
 
     /**
      * An asociative array with the context to be injected in the text
+     *
+     * This REPLACES the context rather than merging into it. The replacer is a singleton shared by
+     * every recipient of a sending, so accumulating would carry one recipient's values into the
+     * next and render their data into someone else's message. Every caller passes the full context
+     * it wants applied.
+     *
      * @param array<string,mixed> $context
      * @return static
      */
     public function injectContext($context)
 	{
-		$this->context = array_merge($this->context, $context);
+		$this->context = $context;
 
 		return $this;
 	}

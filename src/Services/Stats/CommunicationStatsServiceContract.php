@@ -7,8 +7,8 @@ use Illuminate\Support\Collection;
 
 /**
  * Read-side aggregates over the communication send log (header + per-recipient rows), scoped to
- * a team subtree. Every metric reduces to a NOT NULL check on a denormalized per-status timestamp
- * column — no joins to a provider table.
+ * a team subtree. Metrics cover send-side outcomes only (sent / failed); engagement stats are not
+ * reported because no provider webhook ingestion populates the columns they would read.
  */
 interface CommunicationStatsServiceContract
 {

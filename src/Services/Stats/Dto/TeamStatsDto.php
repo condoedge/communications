@@ -11,7 +11,6 @@ class TeamStatsDto
         public readonly ?int $teamId,
         public readonly int $sent = 0,
         public readonly int $failed = 0,
-        public readonly int $opened = 0,
     ) {
     }
 }

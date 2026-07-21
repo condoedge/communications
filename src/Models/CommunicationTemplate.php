@@ -66,22 +66,33 @@ class CommunicationTemplate extends Model
     }
     
     // ACTIONS
-    public function notify(array|Collection $communicables, $params = []) 
+    /**
+     * Send this channel and record what actually happened per recipient.
+     *
+     * Bookkeeping is deliberately OUTSIDE the try: if the rows cannot be written then nothing has
+     * been delivered, so letting it propagate is safe and lets the queue retry. Once delivery has
+     * begun the opposite holds — the recipients already reached cannot be un-sent, so a handler
+     * failure is recorded and logged rather than rethrown into a duplicate-producing retry.
+     */
+    public function notify(array|Collection $communicables, $params = [])
     {
+        // Fix the order once so the positions in the recipient rows line up with the positions the
+        // handler reports outcomes against.
+        $communicables = collect($communicables)->values();
+
         $communicationSending = CommunicationSending::createOneForCommunicationTemplate($this, $communicables, $params);
 
         try {
-            $this->getHandler()->notify($communicables, $params);
-            $communicationSending->status = CommunicationSendingStatus::SENT;
-            $communicationSending->sent_at = now();
-
-            $communicationSending->markRecipientsSent();
+            $communicationSending->applyDeliveryReport($this->getHandler()->notify($communicables, $params));
         } catch (\Throwable $e) {
-            Log::warning("Error sending communication: " . $e->getMessage(), $e->getTrace());
-            $communicationSending->status = CommunicationSendingStatus::FAILED;
-            $communicationSending->error_message = mb_substr($e->getMessage(), 0, 1000);
+            Log::error('Error sending communication: ' . $e->getMessage(), [
+                'communication_id' => $this->id,
+                'channel' => $this->type?->value,
+                'exception' => $e,
+            ]);
 
-            $communicationSending->markRecipientsFailed();
+            $communicationSending->error_message = mb_substr($e->getMessage(), 0, 1000);
+            $communicationSending->markAllRecipientsFailed($e->getMessage());
         } finally {
             $communicationSending->save();
         }

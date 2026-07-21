@@ -51,10 +51,11 @@ class ManualTrigger implements CommunicableEvent, DatabaseCommunicableEvent
         return [];
     }
 
-    static function manuallyForm($communicationGroupId = null)
+    static function manuallyForm($communicationGroupId = null, $teamId = null)
     {
         return new GenericManualTriggerForm([
-            'communication_id' => $communicationGroupId
+            'communication_id' => $communicationGroupId,
+            'team_id' => $teamId,
         ]);
     }
 

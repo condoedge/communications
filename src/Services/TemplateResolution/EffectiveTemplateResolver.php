@@ -26,8 +26,13 @@ class EffectiveTemplateResolver implements EffectiveTemplateResolverContract
         // getAncestorTeamIds is ROOT-first and INCLUDES self -> reverse() == closest-first [self, parent, .., root].
         $candidates = $this->hierarchy->getAncestorTeamIds($teamId)->reverse()->values();
 
+        // orderByDesc so keyBy (which keeps the LAST row per key) settles on the lowest id, matching
+        // what a ->first() lookup elsewhere would pick. Duplicate (team_id, trigger) rows are
+        // possible since the uniqueness relax, and the admin editing one row while the send path
+        // used another is how a Disable silently stops taking effect.
         $owned = CommunicationTemplateGroup::forTrigger($trigger)
             ->whereIn('team_id', $candidates->all())
+            ->orderByDesc('id')
             ->get()
             ->keyBy('team_id');
 

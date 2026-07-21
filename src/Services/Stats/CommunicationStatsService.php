@@ -17,10 +17,16 @@ use Kompo\Auth\Teams\Contracts\TeamHierarchyInterface;
 /**
  * Aggregates the per-recipient send log over a team subtree.
  *
- * Every metric is a conditional aggregate over communication_sending_recipients: each per-status
- * timestamp is denormalized so "opened" is `opened_at IS NOT NULL`. A recipient's teams live in the
- * communication_sending_recipient_teams pivot, so a send relevant to several teams is counted once
- * for totals (scoped via EXISTS) but appears under each team in the per-team breakdown (a pivot join).
+ * Every metric is a conditional aggregate over communication_sending_recipients. A recipient's teams
+ * live in the communication_sending_recipient_teams pivot, so a send relevant to several teams is
+ * counted once for totals (scoped via EXISTS) but appears under each team in the per-team breakdown
+ * (a pivot join).
+ *
+ * Only send-side outcomes are reported (sent / failed / pending). The engagement columns
+ * (opened_at, clicked_at, delivered_at, bounced_at, provider_*) exist on the table but nothing in
+ * this package writes them — there is no provider webhook ingestion — so aggregating them would
+ * report a structural zero as if it were a measurement. Reinstate those metrics together with the
+ * ingestion that populates the columns.
  */
 class CommunicationStatsService implements CommunicationStatsServiceContract
 {
@@ -45,21 +51,16 @@ class CommunicationStatsService implements CommunicationStatsServiceContract
         $row = $this->scopedRecipients($expanded)
             ->selectRaw($this->sentExpr() . ' as sent_count')
             ->selectRaw($this->failedExpr() . ' as failed_count')
-            ->selectRaw($this->openedExpr() . ' as opened_count')
             ->selectRaw('SUM(CASE WHEN ' . self::RECIPIENTS . '.sent_at IS NOT NULL AND ' . self::RECIPIENTS . '.sent_at >= ? THEN 1 ELSE 0 END) as last30d_count', [now()->subDays(30)])
             ->first();
-
-        $sent = (int) ($row->sent_count ?? 0);
-        $opened = (int) ($row->opened_count ?? 0);
 
         // Anchor teams (not the expanded subtree): trigger state is resolved per viewing team.
         [$active, $disabled] = $this->triggerCounts($teamIds);
 
         return new StatsOverviewDto(
-            totalSent: $sent,
+            totalSent: (int) ($row->sent_count ?? 0),
             failed: (int) ($row->failed_count ?? 0),
             last30d: (int) ($row->last30d_count ?? 0),
-            openRate: $this->rate($opened, $sent),
             activeTriggers: $active,
             disabledTriggers: $disabled,
         );
@@ -79,20 +80,12 @@ class CommunicationStatsService implements CommunicationStatsServiceContract
             ->selectRaw('`' . self::SENDINGS . '`.`trigger` as `trigger`')
             ->selectRaw($this->sentExpr() . ' as sent_count')
             ->selectRaw($this->failedExpr() . ' as failed_count')
-            ->selectRaw($this->openedExpr() . ' as opened_count')
-            ->selectRaw('SUM(CASE WHEN ' . self::RECIPIENTS . '.clicked_at IS NOT NULL THEN 1 ELSE 0 END) as clicked_count')
             ->get()
-            ->map(function ($r) {
-                $sent = (int) $r->sent_count;
-
-                return new TriggerStatsDto(
-                    trigger: (string) $r->trigger,
-                    sent: $sent,
-                    failed: (int) $r->failed_count,
-                    opened: (int) $r->opened_count,
-                    clickRate: $this->rate((int) $r->clicked_count, $sent),
-                );
-            })
+            ->map(fn ($r) => new TriggerStatsDto(
+                trigger: (string) $r->trigger,
+                sent: (int) $r->sent_count,
+                failed: (int) $r->failed_count,
+            ))
             ->values();
     }
 
@@ -114,13 +107,11 @@ class CommunicationStatsService implements CommunicationStatsServiceContract
             ->selectRaw(self::PIVOT . '.team_id as team_id')
             ->selectRaw($this->sentExpr() . ' as sent_count')
             ->selectRaw($this->failedExpr() . ' as failed_count')
-            ->selectRaw($this->openedExpr() . ' as opened_count')
             ->get()
             ->map(fn ($r) => new TeamStatsDto(
                 teamId: (int) $r->team_id,
                 sent: (int) $r->sent_count,
                 failed: (int) $r->failed_count,
-                opened: (int) $r->opened_count,
             ))
             ->values();
     }
@@ -162,23 +153,10 @@ class CommunicationStatsService implements CommunicationStatsServiceContract
         return 'SUM(CASE WHEN ' . self::RECIPIENTS . '.sent_at IS NOT NULL THEN 1 ELSE 0 END)';
     }
 
-    protected function openedExpr(): string
-    {
-        return 'SUM(CASE WHEN ' . self::RECIPIENTS . '.opened_at IS NOT NULL THEN 1 ELSE 0 END)';
-    }
-
     protected function failedExpr(): string
     {
-        return 'SUM(CASE WHEN ' . self::RECIPIENTS . '.status = ' . CommunicationSendingRecipientStatus::FAILED->value . ' THEN 1 ELSE 0 END)';
-    }
-
-    protected function rate(int $numerator, int $denominator): float
-    {
-        if ($denominator <= 0) {
-            return 0.0;
-        }
-
-        return round($numerator / $denominator * 100, 1);
+        // Interpolated, not bound: the only variable part is an int-backed enum case, never input.
+        return 'SUM(CASE WHEN ' . self::RECIPIENTS . '.status = ' . (int) CommunicationSendingRecipientStatus::FAILED->value . ' THEN 1 ELSE 0 END)';
     }
 
     /**

@@ -50,9 +50,7 @@ class CommunicationManualList extends WhiteTable
 
         // The team's own manual communications — many per team (the (team_id, trigger) uniqueness
         // was relaxed for manual); the one-off direct_usage temps stay hidden.
-        return CommunicationTemplateGroup::forTrigger(ManualTrigger::class)
-            ->where('team_id', $this->teamId)
-            ->where(fn ($q) => $q->whereNull('direct_usage')->orWhere('direct_usage', false))
+        return CommunicationTemplateGroup::manualForTeam($this->teamId)
             ->when($search !== '', fn ($q) => $q->whereRaw('LOWER(title) LIKE ?', ["%{$search}%"]));
     }
 
@@ -135,21 +133,30 @@ class CommunicationManualList extends WhiteTable
 
     public function editManual($id)
     {
-        return new CommunicationTemplateForm($id);
+        return new CommunicationTemplateForm($this->authorizedGroup($id)->id);
     }
 
     /** Fire the manual communication: pick the communicable type + recipients, then send. */
     public function sendManual($id)
     {
-        return ManualTrigger::manuallyForm($id);
+        return ManualTrigger::manuallyForm($this->authorizedGroup($id)->id, $this->teamId);
     }
 
     public function deleteManual($id)
     {
-        $group = CommunicationTemplateGroup::findOrFail($id);
+        $group = $this->authorizedGroup($id);
 
         if (!$this->hasSendings($group)) {
             $group->delete();
         }
+    }
+
+    /**
+     * Actions are invocable by id and the id arrives raw from the request, so every one of them must
+     * resolve through the same scope as the listing — checkAuthWrite only gates the link's rendering.
+     */
+    protected function authorizedGroup($id): CommunicationTemplateGroup
+    {
+        return CommunicationTemplateGroup::manualForTeam($this->teamId)->findOrFail($id);
     }
 }

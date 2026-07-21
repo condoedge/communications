@@ -96,23 +96,31 @@ class ContextEnhancer
      * for a context key, it will be executed and its result will be merged into the enhanced context. Additionally, if a
      * context value has a method `enhanceContext`, it will be called to further enhance the context.
      *
+     * @param array<string, mixed> $extra Extra context for this call only. It is never stored, so it cannot bleed
+     *                                    into the next call.
      * @return array<string, mixed> The enhanced context.
      */
-    public function getEnhancedContext()
+    public function getEnhancedContext(array $extra = [])
     {
-        collect($this->context)->each(function ($value, $key) {
+        // This service is a singleton shared by every recipient of a sending (and by every job on a
+        // long-lived worker), so both the input and the accumulator have to be scoped to this call.
+        $context = array_merge($this->context, $extra);
+
+        $this->enhancedContext = [];
+
+        collect($context)->each(function ($value, $key) {
             if (array_key_exists($key, $this->enhancers)) {
                 $enhancer = $this->enhancers[$key];
 
-                $this->enhancedContext = array_merge($enhancer($value), $this->enhancedContext);
+                $this->enhancedContext = array_merge($this->enhancedContext, $enhancer($value));
             }
 
             if ((gettype($value) == 'string' || gettype($value) == 'object') && method_exists($value, 'enhanceContext')) {
-                $this->enhancedContext = array_merge($value->enhanceContext($value), $this->enhancedContext);
+                $this->enhancedContext = array_merge($this->enhancedContext, $value->enhanceContext($value));
             }
         });
 
-        $this->enhancedContext = array_merge($this->enhancedContext, $this->context);
+        $this->enhancedContext = array_merge($this->enhancedContext, $context);
 
         return $this->enhancedContext;
     }

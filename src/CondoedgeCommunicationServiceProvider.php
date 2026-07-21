@@ -114,9 +114,16 @@ class CondoedgeCommunicationServiceProvider extends ServiceProvider
             \Condoedge\Communications\Services\Grouping\NullTriggerGroupResolver::class
         );
 
+        // The send path deliberately uses the UNCACHED resolver. The decorator memoizes for the
+        // lifetime of a request and is flushed at request termination, which a queue worker never
+        // reaches between jobs — a worker that once resolved NONE/DISABLED would keep suppressing
+        // sends until redeploy, long after an admin fixed the template. One resolve per dispatch
+        // costs nothing next to actually sending.
         $this->app->bind(
             \Condoedge\Communications\Services\Dispatch\CommunicationDispatchServiceContract::class,
-            \Condoedge\Communications\Services\Dispatch\CommunicationDispatchService::class
+            fn ($app) => new \Condoedge\Communications\Services\Dispatch\CommunicationDispatchService(
+                $app->make(\Condoedge\Communications\Services\TemplateResolution\EffectiveTemplateResolver::class),
+            )
         );
 
         ContentReplacer::setPostProcessors([

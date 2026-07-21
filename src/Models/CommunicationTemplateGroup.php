@@ -5,6 +5,7 @@ namespace Condoedge\Communications\Models;
 use Condoedge\Communications\Triggers\ManualTrigger;
 use Condoedge\Utils\Models\Model;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 
 class CommunicationTemplateGroup extends Model
 {
@@ -46,6 +47,19 @@ class CommunicationTemplateGroup extends Model
         return $query->where('trigger', $trigger);
     }
 
+    /**
+     * A team's own reusable manual communications — the exact set the manual screens may act on.
+     * The model has no team global scope, so this is the only thing keeping one team out of
+     * another's groups. $teamId is never null here, so the system baseline (team_id NULL) and the
+     * one-off direct_usage temps both stay out of reach.
+     */
+    public function scopeManualForTeam($query, $teamId)
+    {
+        return $query->forTrigger(ManualTrigger::class)
+            ->where('team_id', $teamId)
+            ->where(fn ($q) => $q->whereNull('direct_usage')->orWhere('direct_usage', false));
+    }
+
     public function scopeHasValid($query)
     {
         return $query->whereHas('communicationTemplates', fn($q) => $q->isValid());
@@ -64,8 +78,44 @@ class CommunicationTemplateGroup extends Model
             ->isValid()
             ->get();
 
-        $communications->each->notify($communicables, $params);
-    } 
+        if ($communications->isEmpty()) {
+            Log::warning('Communication group has no sendable channel', [
+                'template_group_id' => $this->id,
+                'trigger' => $this->trigger,
+                'type' => $type,
+            ]);
+
+            return;
+        }
+
+        // CommunicationTemplate::notify contains its own delivery failures, so anything reaching
+        // here means that channel wrote nothing and sent nothing. Keep going so one broken channel
+        // never abandons the rest of the group.
+        $sent = 0;
+        $lastError = null;
+
+        foreach ($communications as $communication) {
+            try {
+                $communication->notify($communicables, $params);
+                $sent++;
+            } catch (\Throwable $e) {
+                $lastError = $e;
+
+                Log::error('Communication channel failed before sending', [
+                    'communication_id' => $communication->id,
+                    'channel' => $communication->type?->value,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // Nothing reached anyone and something broke: surface it so the queue retries. Safe
+        // precisely because no channel delivered — a retry cannot duplicate. If even one channel
+        // got through, swallow it instead; retrying would re-send to everyone it already reached.
+        if ($lastError && $sent === 0) {
+            throw $lastError;
+        }
+    }
 
     public static function deleteOldVoids()
     {
