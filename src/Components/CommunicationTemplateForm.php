@@ -63,17 +63,20 @@ class CommunicationTemplateForm extends Modal
             $this->directUsage ? _Rows(
                 _Hidden()->name('title')->value($this->model->title),
                 _Hidden()->name('trigger')->value($this->model->trigger),
-            ) : 
-            
-            _Rows(
+            ) : ($this->model->id ? _Rows(
+                // Editing an existing group: the trigger is already fixed, so keep it hidden.
+                _Input('Name')->name('title')->value($this->model->title),
+                _Hidden()->name('trigger')->value($this->model->trigger),
+            ) : _Rows(
                 _Input('Name')->name('title'),
 
                 _Select('trigger')->name('trigger')
+                    ->config(['floatingOptions' => true])
                     ->options(collect(CommunicationTemplateGroup::getTriggers())->mapWithKeys(fn($trigger) => [$trigger => $trigger::getName()]))
                     ->selfPost('saveAndGetNewForm')
                     ->inPanel('communication-type-form')
                     ->panelLoading('communication-type-form'),
-            ),
+            )),
 
 
             !$this->model->id ? _Rows(

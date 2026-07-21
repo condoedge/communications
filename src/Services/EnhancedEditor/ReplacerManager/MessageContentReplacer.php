@@ -41,12 +41,18 @@ class MessageContentReplacer
 
     /**
      * An asociative array with the context to be injected in the text
+     *
+     * This REPLACES the context rather than merging into it. The replacer is a singleton shared by
+     * every recipient of a sending, so accumulating would carry one recipient's values into the
+     * next and render their data into someone else's message. Every caller passes the full context
+     * it wants applied.
+     *
      * @param array<string,mixed> $context
      * @return static
      */
     public function injectContext($context)
 	{
-		$this->context = array_merge($this->context, $context);
+		$this->context = $context;
 
 		return $this;
 	}
@@ -272,6 +278,20 @@ class MessageContentReplacer
                 $this->currentUsageCount = 0;
             }
         }
+    }
+
+    /**
+     * Wrap every variable mention in $html with a subtle preview tint. Each registered parser
+     * decorates its own mention format, so the visual layer never needs to know how a mention is
+     * represented — it just asks for the highlighted HTML.
+     */
+    public function highlightMentions(string $html): string
+    {
+        foreach ($this->parsers as $parser) {
+            $html = $parser->highlightMentions($html);
+        }
+
+        return $html;
     }
 
     public function getVarBuilt($varId, ?string $parserName = null)

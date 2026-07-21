@@ -5,6 +5,7 @@ namespace Condoedge\Communications\Models;
 use Condoedge\Communications\Facades\ContentReplacer;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Condoedge\Utils\Models\Model;
 
 class CommunicationTemplate extends Model
@@ -65,19 +66,57 @@ class CommunicationTemplate extends Model
     }
     
     // ACTIONS
-    public function notify(array|Collection $communicables, $params = []) 
+    /**
+     * Send this channel and record what actually happened per recipient.
+     *
+     * Bookkeeping is deliberately OUTSIDE the try: if the rows cannot be written then nothing has
+     * been delivered, so letting it propagate is safe and lets the queue retry. Once delivery has
+     * begun the opposite holds — the recipients already reached cannot be un-sent, so a handler
+     * failure is recorded and logged rather than rethrown into a duplicate-producing retry.
+     */
+    public function notify(array|Collection $communicables, $params = []): ?CommunicationSending
     {
+        // Fix the order once so the positions in the recipient rows line up with the positions the
+        // handler reports outcomes against.
+        $communicables = collect($communicables)->values();
+
+        if ($communicables->isEmpty()) {
+            return null;
+        }
+
         $communicationSending = CommunicationSending::createOneForCommunicationTemplate($this, $communicables, $params);
 
+        $report = null;
+
         try {
-            $this->getHandler()->notify($communicables, $params);
-            $communicationSending->status = CommunicationSendingStatus::SENT;
-        } catch (\Exception $e) {
-            Log::warning("Error sending communication: " . $e->getMessage(), $e->getTrace());
-            $communicationSending->status = CommunicationSendingStatus::FAILED;
-        } finally {
-            $communicationSending->save();
+            $report = $this->getHandler()->notify($communicables, $params);
+        } catch (\Throwable $e) {
+            Log::error('Error sending communication: ' . $e->getMessage(), [
+                'communication_id' => $this->id,
+                'channel' => $this->type?->value,
+                'exception' => $e,
+            ]);
+
+            $communicationSending->error_message = mb_substr($e->getMessage(), 0, 1000);
         }
+
+        // Recording the outcome is separate from producing it. Delivery has already happened by this
+        // point, so a failure to write it down must never propagate — that would fail the job and
+        // send the whole channel a second time on retry.
+        try {
+            $report
+                ? $communicationSending->applyDeliveryReport($report)
+                : $communicationSending->markAllRecipientsFailed($communicationSending->error_message);
+
+            $communicationSending->save();
+        } catch (\Throwable $e) {
+            Log::error('Failed to record communication delivery outcome', [
+                'communication_sending_id' => $communicationSending->id,
+                'exception' => $e,
+            ]);
+        }
+
+        return $communicationSending;
     }
 
     public function delete()
