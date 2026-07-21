@@ -91,13 +91,19 @@ class CommunicationTemplateGroup extends Model
         // CommunicationTemplate::notify contains its own delivery failures, so anything reaching
         // here means that channel wrote nothing and sent nothing. Keep going so one broken channel
         // never abandons the rest of the group.
-        $sent = 0;
+        $delivered = 0;
         $lastError = null;
 
         foreach ($communications as $communication) {
             try {
-                $communication->notify($communicables, $params);
-                $sent++;
+                $sending = $communication->notify($communicables, $params);
+
+                // "Did not throw" is not the same as "reached someone": the handler contains every
+                // per-recipient failure, so a totally undelivered channel returns normally. Only the
+                // recorded outcome can answer whether a retry would duplicate anything.
+                if ($sending && in_array($sending->status, [CommunicationSendingStatus::SENT, CommunicationSendingStatus::PARTIAL], true)) {
+                    $delivered++;
+                }
             } catch (\Throwable $e) {
                 $lastError = $e;
 
@@ -112,7 +118,7 @@ class CommunicationTemplateGroup extends Model
         // Nothing reached anyone and something broke: surface it so the queue retries. Safe
         // precisely because no channel delivered — a retry cannot duplicate. If even one channel
         // got through, swallow it instead; retrying would re-send to everyone it already reached.
-        if ($lastError && $sent === 0) {
+        if ($lastError && $delivered === 0) {
             throw $lastError;
         }
     }
@@ -130,7 +136,7 @@ class CommunicationTemplateGroup extends Model
      * @description To send a just one case communication. It could be used more than once, 
      * but it'll be hidden in the list and always be used to trigger manually
      */
-    public static function createManualTemp()
+    public static function createManualTemp(?int $teamId = null)
     {
         $trigger = ManualTrigger::class;
 
@@ -138,6 +144,9 @@ class CommunicationTemplateGroup extends Model
         $communicationTemplateGroup->trigger = $trigger;
         $communicationTemplateGroup->title = $trigger::getName();
         $communicationTemplateGroup->direct_usage = true;
+        // Without a team the send records no recipient team pivot, which hides it from every log and
+        // stat, and leaves the database channel with no team to write a notification against.
+        $communicationTemplateGroup->team_id = $teamId ?: currentTeamId();
         $communicationTemplateGroup->save();
 
         return $communicationTemplateGroup;

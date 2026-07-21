@@ -64,6 +64,13 @@ class NotificationTemplate extends Model
             // recipient's derived context into every later one, and explicit context outranks
             // derived values, so the stale data would win.
             AbstractCommunicationHandler::withRecipientLocale($communicable, function () use ($communicable, $params, $position, &$notifications, &$delivered) {
+                // notifications.user_id is NOT NULL with an FK, and a recipient can legitimately
+                // have no user account. One such row would fail the whole bulk insert and take
+                // every valid recipient's notification down with it.
+                if (!$communicable->getUserId()) {
+                    return;
+                }
+
                 foreach ($params['teams_ids'] ?? [] as $teamId) {
                     if (!$teamId || !$communicable->hasTeam($teamId)) {
                         continue;

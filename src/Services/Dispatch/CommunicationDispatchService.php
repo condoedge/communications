@@ -34,15 +34,29 @@ class CommunicationDispatchService implements CommunicationDispatchServiceContra
         // baseline behind its back. Recipients are partitioned first: resolving per team without
         // partitioning would send one message per team to anyone belonging to several of them.
         $dispatched = false;
+        $lastError = null;
 
         foreach ($this->partitionByTeam($communicables, $teams) as $teamId => $bucket) {
-            $dispatched = $this->dispatchForTeam(
-                $trigger,
-                $event,
-                collect($bucket),
-                $teamId ?: null,
-                $teamId ? [$teamId] : $teams,
-            ) || $dispatched;
+            try {
+                $dispatched = $this->dispatchForTeam(
+                    $trigger,
+                    $event,
+                    collect($bucket),
+                    $teamId ?: null,
+                    $teamId ? [$teamId] : $teams,
+                ) || $dispatched;
+            } catch (\Throwable $e) {
+                $lastError = $e;
+
+                Log::error('Team dispatch failed', ['trigger' => $trigger, 'team_id' => $teamId, 'exception' => $e]);
+            }
+        }
+
+        // Only propagate when no team got through. The listener releases its idempotency claim on a
+        // throw, which is sound only while nothing has been delivered — letting a late team's failure
+        // escape after an earlier team already sent would make the retry duplicate that team.
+        if ($lastError && !$dispatched) {
+            throw $lastError;
         }
 
         return $dispatched;

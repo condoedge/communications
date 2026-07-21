@@ -167,6 +167,9 @@ class CommunicationSending extends Model
     {
         $this->recipients()->update([
             'status' => CommunicationSendingRecipientStatus::FAILED->value,
+            // Cleared explicitly: an earlier partial apply may already have stamped some rows, and
+            // the stats count sent_at rather than status, so a leftover timestamp reads as delivered.
+            'sent_at' => null,
             'error_message' => $error === null ? null : mb_substr($error, 0, 1000),
         ]);
 

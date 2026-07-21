@@ -2,6 +2,7 @@
 
 namespace Condoedge\Communications\Services\EnhancedEditor\ReplacerManager;
 
+use Condoedge\Communications\Recipients\RecipientKey;
 use Condoedge\Communications\Services\CommunicationHandlers\Contracts\Communicable;
 
 class ContextEnhancer
@@ -67,7 +68,9 @@ class ContextEnhancer
     public function setCommunicable(Communicable $communicable)
     {
         $this->context = array_merge($this->context, [
-            'communicable' => $communicable
+            // Unwrapped so host enhancers keyed on the concrete model still match; every other
+            // consumer of a recipient resolves the underlying model the same way.
+            'communicable' => RecipientKey::unwrap($communicable),
         ]);
 
         return $this;
@@ -108,15 +111,19 @@ class ContextEnhancer
 
         $this->enhancedContext = [];
 
+        // The accumulator stays SECOND in both merges: several enhancers legitimately derive the same
+        // key (a host commonly resolves 'team' from an event, an invoice and the communicable), and
+        // the first one to produce it wins. Reversing this hands the key to whichever enhancer runs
+        // last, which is the least specific one.
         collect($context)->each(function ($value, $key) {
             if (array_key_exists($key, $this->enhancers)) {
                 $enhancer = $this->enhancers[$key];
 
-                $this->enhancedContext = array_merge($this->enhancedContext, $enhancer($value));
+                $this->enhancedContext = array_merge($enhancer($value), $this->enhancedContext);
             }
 
             if ((gettype($value) == 'string' || gettype($value) == 'object') && method_exists($value, 'enhanceContext')) {
-                $this->enhancedContext = array_merge($this->enhancedContext, $value->enhanceContext($value));
+                $this->enhancedContext = array_merge($value->enhanceContext($value), $this->enhancedContext);
             }
         });
 

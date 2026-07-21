@@ -148,6 +148,12 @@ class CommunicationTriggeredListener implements ShouldQueue
         $groups->each(function ($group) use ($event) {
             $teams = array_filter([$group->team_id]);
 
+            if (!$teams) {
+                Log::warning('Manual communication group has no team; it will not appear in any team log or stat', [
+                    'template_group_id' => $group->id,
+                ]);
+            }
+
             $params = ContextEnhancer::setContext(array_merge($event->getParams(), [
                 'trigger' => $event::class,
                 'trigger_instance' => $event,

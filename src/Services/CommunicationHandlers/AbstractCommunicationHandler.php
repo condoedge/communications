@@ -50,6 +50,11 @@ abstract class AbstractCommunicationHandler
      * Returns what actually happened per recipient. Recipients dropped by the channel filter are
      * reported SKIPPED rather than silently discarded, so they are never later stamped SENT.
      *
+     * CONTRACT: outcomes are keyed by each recipient's POSITION in the collection, which is how
+     * CommunicationSending matches them back to the rows it wrote. An implementation of
+     * notifyCommunicables() must therefore iterate the array it receives WITHOUT reindexing it —
+     * an array_values()/usort() in a handler silently misattributes every outcome.
+     *
      * @param array|\Illuminate\Database\Eloquent\Collection $communicables
      * @param mixed $params
      */

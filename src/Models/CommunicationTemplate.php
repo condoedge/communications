@@ -74,16 +74,22 @@ class CommunicationTemplate extends Model
      * begun the opposite holds — the recipients already reached cannot be un-sent, so a handler
      * failure is recorded and logged rather than rethrown into a duplicate-producing retry.
      */
-    public function notify(array|Collection $communicables, $params = [])
+    public function notify(array|Collection $communicables, $params = []): ?CommunicationSending
     {
         // Fix the order once so the positions in the recipient rows line up with the positions the
         // handler reports outcomes against.
         $communicables = collect($communicables)->values();
 
+        if ($communicables->isEmpty()) {
+            return null;
+        }
+
         $communicationSending = CommunicationSending::createOneForCommunicationTemplate($this, $communicables, $params);
 
+        $report = null;
+
         try {
-            $communicationSending->applyDeliveryReport($this->getHandler()->notify($communicables, $params));
+            $report = $this->getHandler()->notify($communicables, $params);
         } catch (\Throwable $e) {
             Log::error('Error sending communication: ' . $e->getMessage(), [
                 'communication_id' => $this->id,
@@ -92,10 +98,25 @@ class CommunicationTemplate extends Model
             ]);
 
             $communicationSending->error_message = mb_substr($e->getMessage(), 0, 1000);
-            $communicationSending->markAllRecipientsFailed($e->getMessage());
-        } finally {
-            $communicationSending->save();
         }
+
+        // Recording the outcome is separate from producing it. Delivery has already happened by this
+        // point, so a failure to write it down must never propagate — that would fail the job and
+        // send the whole channel a second time on retry.
+        try {
+            $report
+                ? $communicationSending->applyDeliveryReport($report)
+                : $communicationSending->markAllRecipientsFailed($communicationSending->error_message);
+
+            $communicationSending->save();
+        } catch (\Throwable $e) {
+            Log::error('Failed to record communication delivery outcome', [
+                'communication_sending_id' => $communicationSending->id,
+                'exception' => $e,
+            ]);
+        }
+
+        return $communicationSending;
     }
 
     public function delete()
