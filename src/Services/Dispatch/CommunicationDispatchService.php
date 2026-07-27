@@ -120,19 +120,6 @@ class CommunicationDispatchService implements CommunicationDispatchServiceContra
      * decides which teams a recipient can actually receive the notice in. The writer keeps a row only
      * where $communicable->hasTeam($teamId), and team access flows downward (own team, descendants,
      * siblings) — never up to an ancestor.
-     *
-     * So an event whose audience sits BELOW its own team has to declare the two differently: a
-     * yearly-registration notice is scoped to the event's team but notifies permission holders in
-     * that team's children, who never "have" the parent. Substituting the scope for the audience
-     * made the two sets disjoint and dropped every row silently, so an event that declares an
-     * audience of its own keeps it.
-     *
-     * Emptiness decides, not null: an event that declares the key but resolves it to [] or [null]
-     * has no usable audience and must still fall back rather than mute the send.
-     *
-     * @param array $eventParams the event's own params, before this service merges its values over them
-     * @param int[] $communicationTeams
-     * @return int[]
      */
     protected function notificationAudienceFor(array $eventParams, array $communicationTeams, ?int $teamId): array
     {
