@@ -93,21 +93,54 @@ class CommunicationDispatchService implements CommunicationDispatchServiceContra
             return false;
         }
 
+        $eventParams = $event->getParams();
+
         // team_id is the sending's template/header team; communication_teams is the full set the send
         // is recorded against (the recipient team pivot) so it appears in every team, counted once.
-        // teams_ids carries the same set to the database channel, which writes one notification row
-        // per (recipient, team).
-        $params = ContextEnhancer::setContext(array_merge($event->getParams(), [
+        // teams_ids is the database channel's audience, which is NOT always the same set — see
+        // notificationAudienceFor().
+        $params = ContextEnhancer::setContext(array_merge($eventParams, [
             'trigger' => $trigger,
             'trigger_instance' => $event,
             'team_id' => $teamId,
             'communication_teams' => $communicationTeams,
-            'teams_ids' => $communicationTeams ?: array_filter([$teamId]),
+            'teams_ids' => $this->notificationAudienceFor($eventParams, $communicationTeams, $teamId),
         ]))->getEnhancedContext();
 
         $resolution->group->notify($communicables, null, $params);
 
         return true;
+    }
+
+    /**
+     * The teams the database channel writes notification rows under.
+     *
+     * Deliberately not the same concept as the communication's team scope: communication_teams
+     * decides which team's template resolves and which teams the send is counted under, while this
+     * decides which teams a recipient can actually receive the notice in. The writer keeps a row only
+     * where $communicable->hasTeam($teamId), and team access flows downward (own team, descendants,
+     * siblings) — never up to an ancestor.
+     *
+     * So an event whose audience sits BELOW its own team has to declare the two differently: a
+     * yearly-registration notice is scoped to the event's team but notifies permission holders in
+     * that team's children, who never "have" the parent. Substituting the scope for the audience
+     * made the two sets disjoint and dropped every row silently, so an event that declares an
+     * audience of its own keeps it.
+     *
+     * Emptiness decides, not null: an event that declares the key but resolves it to [] or [null]
+     * has no usable audience and must still fall back rather than mute the send.
+     *
+     * @param array $eventParams the event's own params, before this service merges its values over them
+     * @param int[] $communicationTeams
+     * @return int[]
+     */
+    protected function notificationAudienceFor(array $eventParams, array $communicationTeams, ?int $teamId): array
+    {
+        // collect() rather than a cast: an event may hand back a Collection here, and (array) on one
+        // yields its internal shape instead of its items.
+        $declared = $this->normalizeTeams(collect($eventParams['teams_ids'] ?? [])->all());
+
+        return $declared ?: ($communicationTeams ?: array_filter([$teamId]));
     }
 
     /**
