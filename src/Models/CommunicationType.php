@@ -7,6 +7,7 @@ use Condoedge\Communications\Services\CommunicationHandlers\SmsCommunicationHand
 use Condoedge\Communications\Services\CommunicationHandlers\EmailCommunicationHandler;
 use Condoedge\Communications\Services\CommunicationHandlers\DatabaseCommunicationHandler;
 use Condoedge\Communications\Services\CommunicationHandlers\TaskCommunicationHandler;
+use Condoedge\Utils\Facades\GlobalConfig;
 
 enum CommunicationType: int 
 {
@@ -56,5 +57,20 @@ enum CommunicationType: int
             self::DATABASE => new DatabaseCommunicationHandler($communication, $this),
             self::TASK => new TaskCommunicationHandler($communication, $this),
         };
+    }
+
+    public function enabledKey(): string
+    {
+        return match ($this) {
+            self::EMAIL => 'communications_channels.email.enabled',
+            self::SMS => 'communications_channels.sms.enabled',
+            self::DATABASE => 'communications_channels.database.enabled',
+            self::TASK => 'communications_channels.task.enabled',
+        };
+    }
+
+    public function enabled(): bool
+    {
+        return GlobalConfig::get($this->enabledKey(), true);
     }
 }

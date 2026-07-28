@@ -75,6 +75,7 @@ class CommunicationTemplateGroup extends Model
     {
         $communications = $this->communicationTemplates()
             ->when($type, fn($q) => $q->where('type', $type))
+            ->whereIn('type', collect(CommunicationType::cases())->reject(fn($t) => !$t->enabled())->map(fn($t) => $t->value)->all())
             ->isValid()
             ->get();
 

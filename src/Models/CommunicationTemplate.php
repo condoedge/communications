@@ -76,6 +76,15 @@ class CommunicationTemplate extends Model
      */
     public function notify(array|Collection $communicables, $params = []): ?CommunicationSending
     {
+        if (!$this->type->enabled()) {
+            Log::warning('Attempted to send a disabled communication channel', [
+                'communication_id' => $this->id,
+                'channel' => $this->type?->value,
+            ]);
+
+            return null;
+        }
+
         // Fix the order once so the positions in the recipient rows line up with the positions the
         // handler reports outcomes against.
         $communicables = collect($communicables)->values();
