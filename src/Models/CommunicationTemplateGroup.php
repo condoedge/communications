@@ -176,7 +176,11 @@ class CommunicationTemplateGroup extends Model
             }
 
             $attributes = [
-                'subject' => collect(array_keys(config('kompo.locales')))->mapWithKeys(fn($locale) => [$locale => $communicationTemplate->title]),
+                // getName() is a translation, so resolving it once would stamp the seeding
+                // request's locale onto every language and ship, say, an English subject on
+                // the French email. Resolve it inside each locale instead.
+                'subject' => collect(array_keys(config('kompo.locales')))
+                    ->mapWithKeys(fn($locale) => [$locale => static::inLocale($locale, fn() => $trigger::getName())]),
                 'content' => $content->toArray(),
             ];
 
@@ -192,6 +196,19 @@ class CommunicationTemplateGroup extends Model
         });
 
         return $communicationTemplate;
+    }
+
+    /** Run $callback with the app temporarily switched to $locale. */
+    protected static function inLocale(string $locale, callable $callback)
+    {
+        $previous = app()->getLocale();
+        app()->setLocale($locale);
+
+        try {
+            return $callback();
+        } finally {
+            app()->setLocale($previous);
+        }
     }
 
     /**
