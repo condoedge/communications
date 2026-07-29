@@ -176,7 +176,8 @@ class CommunicationTemplateGroup extends Model
             }
 
             $attributes = [
-                'subject' => collect(array_keys(config('kompo.locales')))->mapWithKeys(fn($locale) => [$locale => $communicationTemplate->title]),
+                'subject' => collect(array_keys(config('kompo.locales')))
+                    ->mapWithKeys(fn($locale) => [$locale => executeCallbackInLocale($locale, fn() => $trigger::getName())]),
                 'content' => $content->toArray(),
             ];
 
