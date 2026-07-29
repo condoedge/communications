@@ -37,7 +37,9 @@ class TemplateSeedingService implements TemplateSeedingServiceContract
             $group = CommunicationTemplateGroup::createForTrigger($trigger);
 
             if ($group) {
-                $this->applyDefaultButtonHandler($group, $trigger);
+                if (!$this->applyDefaultButtonHandler($group, $trigger)) {
+                    $this->applyDefaultButtonLabelAndAction($group, $trigger);
+                }
             }
 
             return $group;
@@ -63,15 +65,15 @@ class TemplateSeedingService implements TemplateSeedingServiceContract
      * the seeded notification card would render with no actionable button until an admin opens
      * the form and selects a handler manually.
      */
-    protected function applyDefaultButtonHandler(CommunicationTemplateGroup $group, string $trigger): void
+    protected function applyDefaultButtonHandler(CommunicationTemplateGroup $group, string $trigger): bool
     {
         if (!method_exists($trigger, 'validNotificationButtonHandlers')) {
-            return;
+            return false;
         }
 
         $allowed = $trigger::validNotificationButtonHandlers([]);
         if (!is_array($allowed) || empty($allowed)) {
-            return;
+            return false;
         }
 
         $defaultHandler = config(
@@ -82,7 +84,7 @@ class TemplateSeedingService implements TemplateSeedingServiceContract
         $picked = collect($allowed)->first(fn ($h) => $h !== $defaultHandler);
 
         if (!$picked) {
-            return;
+            return false;
         }
 
         $dbTemplate = $group->communicationTemplates()
@@ -90,10 +92,50 @@ class TemplateSeedingService implements TemplateSeedingServiceContract
             ->first();
 
         if (!$dbTemplate) {
-            return;
+            return false;
         }
 
         \Condoedge\Communications\Models\NotificationTemplate::where('communication_id', $dbTemplate->id)
             ->update(['custom_button_handler' => $picked]);
+
+        return true;
+    }
+
+    protected function applyDefaultButtonLabelAndAction(CommunicationTemplateGroup $group, string $trigger): bool
+    {
+        $labelAndAction = $this->getDefaultButtonLabelAndAction($trigger);
+        if (empty($labelAndAction)) {
+            return false;
+        }
+
+        $dbTemplate = $group->communicationTemplates()
+            ->where('type', \Condoedge\Communications\Models\CommunicationType::DATABASE->value)
+            ->first();
+
+        if (!$dbTemplate) {
+            return false;
+        }
+
+        \Condoedge\Communications\Models\NotificationTemplate::where('communication_id', $dbTemplate->id)
+            ->update([
+                'custom_button_text' => $labelAndAction['label'],
+                'custom_button_href' => $labelAndAction['href'],
+            ]);
+
+        return true;
+    }
+
+    protected function getDefaultButtonLabelAndAction(string $trigger): array
+    {
+        if (!method_exists($trigger, 'defaultNotificationButtonLabelAndAction')) {
+            return [];
+        }
+
+        $result = $trigger::defaultNotificationButtonLabelAndAction([]);
+        if (!is_array($result) || !isset($result['label'], $result['href'])) {
+            return [];
+        }
+
+        return $result;
     }
 }
