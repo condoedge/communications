@@ -118,7 +118,7 @@ class TemplateSeedingService implements TemplateSeedingServiceContract
 
         \Condoedge\Communications\Models\NotificationTemplate::where('communication_id', $dbTemplate->id)
             ->update([
-                'custom_button_text' => $labelAndAction['label'],
+                'custom_button_text' => is_array($labelAndAction['label']) ? json_encode($labelAndAction['label']) : $labelAndAction['label'],
                 'custom_button_href' => $labelAndAction['href'],
             ]);
 

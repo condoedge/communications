@@ -50,6 +50,8 @@ class NotificationTemplate extends Model
         $notifications = [];
         $delivered = [];
 
+        $userIdsNotificated = [];
+
         if (empty($params['teams_ids'])) {
             Log::warning('Database notification has no target team; nothing will be written', [
                 'notification_template_id' => $this->id,
@@ -59,11 +61,14 @@ class NotificationTemplate extends Model
             return [];
         }
 
+        // We have a tool now when we list notifications that we show for all the user teams so i set a new config to avoid duplicating for the same user if he has multiple teams.
+        $justOnePerUser = config('kompo-communications.database_notification_just_one_per_user', true);
+
         foreach ($communicables as $position => $communicable) {
             // $params stays by value: enhancing it back into a shared variable would carry the first
             // recipient's derived context into every later one, and explicit context outranks
             // derived values, so the stale data would win.
-            AbstractCommunicationHandler::withRecipientLocale($communicable, function () use ($communicable, $params, $position, &$notifications, &$delivered) {
+            AbstractCommunicationHandler::withRecipientLocale($communicable, function () use ($communicable, $params, $position, &$notifications, &$delivered, &$userIdsNotificated, $justOnePerUser) {
                 // notifications.user_id is NOT NULL with an FK, and a recipient can legitimately
                 // have no user account. One such row would fail the whole bulk insert and take
                 // every valid recipient's notification down with it.
@@ -72,7 +77,7 @@ class NotificationTemplate extends Model
                 }
 
                 foreach ($params['teams_ids'] ?? [] as $teamId) {
-                    if (!$teamId || !$communicable->hasTeam($teamId)) {
+                    if (!$teamId || !$communicable->hasTeam($teamId) || ($justOnePerUser && isset($userIdsNotificated[$communicable->getUserId()]))) {
                         continue;
                     }
 
@@ -100,6 +105,7 @@ class NotificationTemplate extends Model
                     ];
 
                     $delivered[$position] = true;
+                    $userIdsNotificated[$communicable->getUserId()] = true;
                 }
             });
         }
