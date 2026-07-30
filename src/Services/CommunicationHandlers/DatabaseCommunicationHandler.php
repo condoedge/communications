@@ -108,11 +108,23 @@ class DatabaseCommunicationHandler extends AbstractCommunicationHandler
         $handlerClass = $attributes['custom_button_handler'] ?? null;
         $usesDefaultHandler = $this->isDefaultHandler($handlerClass);
 
+        $trigger = $attributes['trigger'] ?? $this->communication?->trigger ?? null;
+
         $notificationTemplate = NotificationTemplate::forCommunication($this->communication->id)->first() ?: new NotificationTemplate();
         $notificationTemplate->custom_button_text = $usesDefaultHandler ? ($attributes['custom_button_text'] ?? null) : null;
-        $notificationTemplate->custom_button_href = $usesDefaultHandler
-            ? ($this->getAllValidRoutes($attributes['trigger'] ?? null)[$attributes['custom_button_href'] ?? null] ?? null)
-            : null;
+        $notificationTemplate->custom_button_href = $usesDefaultHandler ? ($attributes['custom_button_href'] ?? null) : null;
+
+        // Checking if href is part of valid routes for this trigger
+        $isValidRoute = false;
+        if ($handlerClass === null && $trigger) {
+            $validRoutes = $this->getAllValidRoutes($trigger);
+            $isValidRoute = in_array($attributes['custom_button_href'] ?? null, array_keys($validRoutes), true);
+        }
+
+        if (!$isValidRoute) {
+            $notificationTemplate->custom_button_href = null;
+        }
+
         $notificationTemplate->has_reminder_button = $attributes['has_reminder_button'] ?? null;
         $notificationTemplate->custom_button_handler = $handlerClass ?: null;
 
