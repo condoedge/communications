@@ -73,7 +73,7 @@ class CommunicationTemplateForm extends Modal
                 _Select('trigger')->name('trigger')
                     ->config(['floatingOptions' => true])
                     ->options(collect(CommunicationTemplateGroup::getTriggers())->mapWithKeys(fn($trigger) => [$trigger => $trigger::getName()]))
-                    ->selfPost('saveAndGetNewForm')
+                    ->selfPost('saveAndGetNewFormTypes')
                     ->inPanel('communication-type-form')
                     ->panelLoading('communication-type-form'),
             )),
@@ -81,19 +81,11 @@ class CommunicationTemplateForm extends Modal
 
             !$this->model->id ? _Rows(
                 _Html('communications.fill-main-data-help')->class('text-center mb-4'),
-            )  : _Rows(
-                _ButtonGroup()->options(CommunicationType::optionsWithLabels())
-                    ->optionClass('p-2 text-center')
-                    ->name('communication_type', false)
-                    ->default(CommunicationType::EMAIL->value)
-                    ->selfPost('saveAndGetNewForm')
-                    ->withAllFormValues()
-                    ->inPanel('communication-type-form'),
-
-                _Panel(
+            )  : _Panel(
+                $this->getFormsTypes(
                     CommunicationType::EMAIL->handler($this->model->findCommunicationTemplate(CommunicationType::EMAIL->value))->getForm($this->model->trigger, $this->context),
-                )->id(id: 'communication-type-form')->class('mb-6'),
-            ),
+                )
+            )->id('communication-type-form-container'),
 
             _SubmitButton($this->submitButtonMessage())->refresh('communications-list')
                 ->when($this->model->id, fn($el) => $el->closeModal()),
@@ -122,7 +114,7 @@ class CommunicationTemplateForm extends Modal
         }
 
         if (!$communicationType) {
-            return _Html('you must select one to see the editor')->class('text-center');
+            return _Html('communications.select-communication-type-to-edit')->class('text-center');
         }
 
         $oldCommunication = $this->model->findCommunicationTemplate($communicationType);
@@ -130,6 +122,38 @@ class CommunicationTemplateForm extends Modal
         $communicationType = CommunicationType::from($communicationType);
 
         return $communicationType->handler($oldCommunication)->getForm($trigger ?? $this->model->trigger, $this->context);
+    }
+
+    public function saveAndGetNewFormTypes()
+    {
+        $handler = $this->saveAndGetNewForm();
+
+        return $this->getFormsTypes($handler);
+    }
+
+    public function getFormsTypes($handler = null)
+    {
+        $trigger = $this->model->trigger ?? request('trigger');
+
+        return _Rows(
+            _ButtonGroup()->options(
+                    collect(CommunicationType::cases())
+                        ->reject(fn($t) => !$t->enabled())
+                        ->filter(fn($t) => !method_exists($trigger, 'acceptsChannel') || $trigger::acceptsChannel($t))
+                        ->mapWithKeys(fn($t) => [$t->value => $t->label()])
+                        ->all()
+                )
+                    ->optionClass('p-2 text-center')
+                    ->name('communication_type', false)
+                    ->default(CommunicationType::EMAIL->value)
+                    ->selfPost('saveAndGetNewForm')
+                    ->withAllFormValues()
+                    ->inPanel('communication-type-form'),
+
+                _Panel(
+                    $handler
+                )->id(id: 'communication-type-form')->class('mb-6'),
+        );
     }
 
     protected function savePreviousCommunication($communicationType)
