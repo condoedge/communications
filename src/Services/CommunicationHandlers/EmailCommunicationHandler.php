@@ -32,7 +32,7 @@ class EmailCommunicationHandler extends AbstractCommunicationHandler
 
             $recipientEmail = $communicable->getEmail();
 
-            if (!$recipientEmail) {
+            if (!$recipientEmail || filter_var($recipientEmail, FILTER_VALIDATE_EMAIL) === false) {
                 return 'no-email-address';
             }
 
