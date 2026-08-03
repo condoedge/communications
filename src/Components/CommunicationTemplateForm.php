@@ -80,7 +80,7 @@ class CommunicationTemplateForm extends Modal
 
 
             !$this->model->id ? _Rows(
-                _Html('fill the main data to complete the other messages')->class('text-center mb-4'),
+                _Html('communications.fill-main-data-help')->class('text-center mb-4'),
             )  : _Rows(
                 _ButtonGroup()->options(CommunicationType::optionsWithLabels())
                     ->optionClass('p-2 text-center')

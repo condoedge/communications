@@ -628,6 +628,21 @@
 								</translations>
 							</concept_node>
 							<concept_node>
+								<name>fill-main-data-help</name>
+								<description/>
+								<comment/>
+								<translations>
+									<translation>
+										<language>en-US</language>
+										<approved>false</approved>
+									</translation>
+									<translation>
+										<language>fr-FR</language>
+										<approved>false</approved>
+									</translation>
+								</translations>
+							</concept_node>
+							<concept_node>
 								<name>filter-by-status</name>
 								<description/>
 								<comment/>
@@ -1049,6 +1064,21 @@
 							</concept_node>
 							<concept_node>
 								<name>sent-at</name>
+								<description/>
+								<comment/>
+								<translations>
+									<translation>
+										<language>en-US</language>
+										<approved>false</approved>
+									</translation>
+									<translation>
+										<language>fr-FR</language>
+										<approved>false</approved>
+									</translation>
+								</translations>
+							</concept_node>
+							<concept_node>
+								<name>show-only-pending-to-configure</name>
 								<description/>
 								<comment/>
 								<translations>

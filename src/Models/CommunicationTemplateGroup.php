@@ -75,7 +75,7 @@ class CommunicationTemplateGroup extends Model
     {
         $communications = $this->communicationTemplates()
             ->when($type, fn($q) => $q->where('type', $type))
-            ->whereIn('type', collect(CommunicationType::cases())->reject(fn($t) => !$t->enabled())->map(fn($t) => $t->value)->all())
+            ->whereIn('type', $this->getValidCommTypesForTrigger($this->trigger))
             ->isValid()
             ->get();
 
@@ -122,6 +122,15 @@ class CommunicationTemplateGroup extends Model
         if ($lastError && $delivered === 0) {
             throw $lastError;
         }
+    }
+
+    protected function getValidCommTypesForTrigger(string $trigger): array
+    {
+        return collect(CommunicationType::cases())
+            ->reject(fn($t) => !$t->enabled())
+            ->filter(fn($t) => !method_exists($trigger, 'acceptsChannel') || $trigger::acceptsChannel($t))
+            ->map(fn($t) => $t->value)
+            ->all();
     }
 
     public static function deleteOldVoids()

@@ -47,7 +47,7 @@ class CommunicationTemplatesList extends WhiteTable
         return _Rows(
             _Html('communications.internal-events-help')->class('text-sm text-gray-500 mb-3'),
             _FlexEnd(
-                _Toggle('translate.show-only-pending-to-configure')
+                _Toggle('communications.show-only-pending-to-configure')
                     ->class('[&>label]:min-w-max')
                     ->name('not_owned', false)
                     ->filter(),
