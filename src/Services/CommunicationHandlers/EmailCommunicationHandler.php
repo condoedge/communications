@@ -30,7 +30,13 @@ class EmailCommunicationHandler extends AbstractCommunicationHandler
         $this->sendEach($communicables, function ($communicable) use ($layout, $params) {
             $perRecipientParams = ContextEnhancer::setCommunicable($communicable)->getEnhancedContext($params);
 
-            $mail = Mail::to($communicable->getEmail());
+            $recipientEmail = $communicable->getEmail();
+
+            if (!$recipientEmail) {
+                return 'no-email-address';
+            }
+
+            $mail = Mail::to($recipientEmail);
 
             if ($communicable instanceof \Illuminate\Contracts\Translation\HasLocalePreference
                 && $locale = $communicable->preferredLocale()) {
