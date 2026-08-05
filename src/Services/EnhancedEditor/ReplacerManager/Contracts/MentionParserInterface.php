@@ -26,11 +26,20 @@ interface MentionParserInterface
 
     /**
      * Build variable display format
-     * 
+     *
      * @param string $varId Variable ID
      * @return string Built variable format
      */
     public function buildVar(string $varId): string;
+
+    /**
+     * Wrap each mention this parser recognises in $html with a subtle preview tint, returning the
+     * decorated HTML. The visual layer calls this instead of knowing the mention structure itself.
+     *
+     * @param string $html
+     * @return string
+     */
+    public function highlightMentions(string $html): string;
 
     /**
      * Get parser identifier

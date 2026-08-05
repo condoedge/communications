@@ -9,6 +9,8 @@ enum CommunicationSendingStatus: int
     case PENDING = 1;
     case SENT = 2;
     case FAILED = 3;
+    case PARTIAL = 4;
+    case SKIPPED = 5;
 
     public function label()
     {
@@ -16,6 +18,8 @@ enum CommunicationSendingStatus: int
             self::PENDING => __('communications.pending'),
             self::SENT => __('communications.sent'),
             self::FAILED => __('communications.failed'),
+            self::PARTIAL => __('communications.partially-sent'),
+            self::SKIPPED => __('communications.skipped'),
         };
     }
 
@@ -25,6 +29,8 @@ enum CommunicationSendingStatus: int
             self::PENDING => 'bg-warning',
             self::SENT => 'bg-info',
             self::FAILED => 'bg-danger',
+            self::PARTIAL => 'bg-warning',
+            self::SKIPPED => 'bg-gray-400',
         };
     }
 }

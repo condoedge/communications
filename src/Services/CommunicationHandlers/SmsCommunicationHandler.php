@@ -26,19 +26,25 @@ class SmsCommunicationHandler extends AbstractCommunicationHandler
     {
         $layout = $params['layout'] ?? DefaultLayoutSmsCommunicable::class;
 
-        foreach ($communicables as $communicable) {
-            self::withRecipientLocale($communicable, function () use ($communicable, $layout, $params) {
-                $perRecipientParams = ContextEnhancer::setCommunicable($communicable)->getEnhancedContext($params);
+        $this->sendEach($communicables, function ($communicable) use ($layout, $params) {
+            $phone = $communicable->getPhone();
 
-                $notification = new $layout($this->communication, $perRecipientParams);
+            if (!$phone) {
+                return 'no-phone-number';
+            }
 
-                if ($communicable instanceof \Illuminate\Contracts\Translation\HasLocalePreference
-                    && $locale = $communicable->preferredLocale()) {
-                    $notification = $notification->locale($locale);
-                }
+            $perRecipientParams = ContextEnhancer::setCommunicable($communicable)->getEnhancedContext($params);
 
-                Notification::send($communicable->getPhone(), $notification);
-            });
-        }
+            $notification = new $layout($this->communication, $perRecipientParams);
+
+            if ($communicable instanceof \Illuminate\Contracts\Translation\HasLocalePreference
+                && $locale = $communicable->preferredLocale()) {
+                $notification = $notification->locale($locale);
+            }
+
+            Notification::route('vonage', $phone)->notify($notification);
+
+            return null;
+        });
     }
 }

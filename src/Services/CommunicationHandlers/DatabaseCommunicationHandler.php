@@ -3,7 +3,9 @@
 namespace Condoedge\Communications\Services\CommunicationHandlers;
 
 use Condoedge\Communications\EventsHandling\Contracts\DatabaseCommunicableEvent;
+use Condoedge\Communications\Models\CommunicationSendingRecipientStatus;
 use Condoedge\Communications\Models\NotificationTemplate;
+use Illuminate\Support\Facades\Log;
 use Condoedge\Communications\Services\CommunicationHandlers\AbstractCommunicationHandler;
 use Condoedge\Communications\Services\CommunicationHandlers\Contracts\DatabaseCommunicable;
 use Kompo\Auth\Models\Monitoring\DefaultNotificationButtonHandler;
@@ -30,7 +32,34 @@ class DatabaseCommunicationHandler extends AbstractCommunicationHandler
     {
         $notificationTemplate = NotificationTemplate::forCommunication($this->communication->id)->first();
 
-        $notificationTemplate?->sendNotification($communicables, $params);
+        if (!$notificationTemplate) {
+            $this->reportAll($communicables, CommunicationSendingRecipientStatus::SKIPPED, 'no-notification-template');
+
+            return;
+        }
+
+        try {
+            // One bulk insert, but only recipients matching a targeted team get a row — so the
+            // template reports back which ones it actually wrote rather than the batch assuming
+            // success and stamping everyone SENT over an empty insert.
+            $delivered = $notificationTemplate->sendNotification($communicables, $params);
+        } catch (\Throwable $e) {
+            Log::error('Communication delivery failed for a batch', [
+                'communication_id' => $this->communication->id,
+                'channel' => $this->type?->value,
+                'error' => $e->getMessage(),
+            ]);
+
+            $this->reportAll($communicables, CommunicationSendingRecipientStatus::FAILED, $e->getMessage());
+
+            return;
+        }
+
+        foreach (array_keys($communicables) as $position) {
+            in_array($position, $delivered, true)
+                ? $this->report->sent($position)
+                : $this->report->skipped($position, 'no-matching-team');
+        }
     }
 
     // SAVING
@@ -79,11 +108,23 @@ class DatabaseCommunicationHandler extends AbstractCommunicationHandler
         $handlerClass = $attributes['custom_button_handler'] ?? null;
         $usesDefaultHandler = $this->isDefaultHandler($handlerClass);
 
+        $trigger = $attributes['trigger'] ?? $this->communication?->trigger ?? null;
+
         $notificationTemplate = NotificationTemplate::forCommunication($this->communication->id)->first() ?: new NotificationTemplate();
         $notificationTemplate->custom_button_text = $usesDefaultHandler ? ($attributes['custom_button_text'] ?? null) : null;
-        $notificationTemplate->custom_button_href = $usesDefaultHandler
-            ? ($this->getAllValidRoutes($attributes['trigger'] ?? null)[$attributes['custom_button_href'] ?? null] ?? null)
-            : null;
+        $notificationTemplate->custom_button_href = $usesDefaultHandler ? ($attributes['custom_button_href'] ?? null) : null;
+
+        // Checking if href is part of valid routes for this trigger
+        $isValidRoute = false;
+        if ($handlerClass === null && $trigger) {
+            $validRoutes = $this->getAllValidRoutes($trigger);
+            $isValidRoute = in_array($attributes['custom_button_href'] ?? null, array_keys($validRoutes), true);
+        }
+
+        if (!$isValidRoute) {
+            $notificationTemplate->custom_button_href = null;
+        }
+
         $notificationTemplate->has_reminder_button = $attributes['has_reminder_button'] ?? null;
         $notificationTemplate->custom_button_handler = $handlerClass ?: null;
 

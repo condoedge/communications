@@ -27,19 +27,25 @@ class EmailCommunicationHandler extends AbstractCommunicationHandler
     {
         $layout = $params['layout'] ?? DefaultLayoutEmailCommunicable::class;
 
-        foreach ($communicables as $communicable) {
-            self::withRecipientLocale($communicable, function () use ($communicable, $layout, $params) {
-                $perRecipientParams = ContextEnhancer::setCommunicable($communicable)->getEnhancedContext($params);
+        $this->sendEach($communicables, function ($communicable) use ($layout, $params) {
+            $perRecipientParams = ContextEnhancer::setCommunicable($communicable)->getEnhancedContext($params);
 
-                $mail = Mail::to($communicable->getEmail());
+            $recipientEmail = $communicable->getEmail();
 
-                if ($communicable instanceof \Illuminate\Contracts\Translation\HasLocalePreference
-                    && $locale = $communicable->preferredLocale()) {
-                    $mail = $mail->locale($locale);
-                }
+            if (!$recipientEmail || filter_var($recipientEmail, FILTER_VALIDATE_EMAIL) === false) {
+                return 'no-email-address';
+            }
 
-                $mail->send(new $layout($this->communication, $perRecipientParams));
-            });
-        }
+            $mail = Mail::to($recipientEmail);
+
+            if ($communicable instanceof \Illuminate\Contracts\Translation\HasLocalePreference
+                && $locale = $communicable->preferredLocale()) {
+                $mail = $mail->locale($locale);
+            }
+
+            $mail->send(new $layout($this->communication, $perRecipientParams));
+
+            return null;
+        });
     }
 }
