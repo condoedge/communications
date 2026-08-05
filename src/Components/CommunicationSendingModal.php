@@ -13,13 +13,14 @@ use Condoedge\Utils\Kompo\Common\Form;
  */
 class CommunicationSendingModal extends Form
 {
-    public $class = 'p-6 max-w-2xl';
+    public $class = 'p-6 max-w-2xl w-screen';
 
-    protected $sending;
+    public $model = CommunicationSending::class;
 
     public function created()
     {
-        $this->sending = CommunicationSending::with('recipients')->findOrFail($this->prop('id') ?? $this->model->id);
+        $this->sending = $this->model;
+        $this->sending->load('recipients');
     }
 
     public function render()
@@ -30,7 +31,7 @@ class CommunicationSendingModal extends Form
                 $this->headerStat('communications.channel', CommunicationType::labelFor($this->sending->channel)),
                 $this->headerStat('communications.sent-at', communicationDateTime($this->sending->sent_at, __('communications.never'))),
                 $this->headerStat('communications.number-of-ways', (string) $this->sending->recipients->count()),
-            )->class('gap-4 mb-4 flex-wrap'),
+            )->class('gap-4 mb-4 flex-wrap mt-2'),
             _Html('communications.recipient')->class('text-xs text-gray-500 font-semibold mb-1'),
             _Rows(
                 $this->sending->recipients->map(fn ($recipient) => _FlexBetween(
@@ -40,7 +41,7 @@ class CommunicationSendingModal extends Form
                     ),
                     $this->statusPill($recipient->status),
                 )->class('border-b py-2')),
-            ),
+            )->class('overflow-y-auto')->style('max-height: 75vh'),
         );
     }
 
