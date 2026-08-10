@@ -184,9 +184,45 @@ class CommunicationTemplateGroup extends Model
                 return null;
             }
 
+            // getName() is the trigger's ADMIN-FACING title; this is the SUBJECT LINE a recipient
+            // reads. They are usually the same sentence, so a trigger that says nothing keeps
+            // getting its name — but where the two genuinely differ, collapsing them back means
+            // the next seed publishes the admin title as the recipient subject, turning a sentence
+            // about an order into one about a delivery, with a green suite and no error. Such a
+            // trigger declares `public static function getSubject(): string` and that answers here,
+            // and only at SEED time — TemplateSeedingService skips a trigger whose baseline row
+            // already exists, so declaring getSubject() on an already-seeded trigger changes
+            // nothing and reports nothing; from then on the seeded row is the source of truth and
+            // must be edited in the admin instead.
+            //
+            // An empty return falls back to getName() rather than seeding it, because an empty
+            // subject is indistinguishable from a correctly-seeded row in the database,
+            // TemplateSeedingService never re-derives it, and it surfaces only as a subject-less
+            // email in a recipient's inbox.
+            //
+            // Duck-typed rather than a fifth method on CommunicableEvent: every registered trigger
+            // in every host already implements that interface, so adding a method to it makes all
+            // of them fatal on the deploy that ships this line. A trait carrying a default fails
+            // the same way inverted — it is permissive only for classes that remember to `use` it,
+            // and a trigger that forgets seeds no subject at all instead of the one it seeds today.
+            //
+            // Not a second opt-in interface either, though the package ships three
+            // (TeamScopedCommunicableEvent, DatabaseCommunicableEvent, TaskCommunicableEvent) —
+            // every one is tested against an instance (CommunicationTriggeredListener:87), and
+            // seeding holds only a class-string, so the check would have to become
+            // is_a($trigger, X::class, true), a form used nowhere in src/, making this the one seam
+            // a maintainer cannot pattern-match against the package's other method_exists hooks.
+            //
+            // Resolved INSIDE executeCallbackInLocale. Hoisting the call out of the closure would
+            // stamp every locale with the wording of whichever locale happened to be active when
+            // the seeder ran: the row still looks like a complete translation map, and the mistake
+            // surfaces only to the recipient who receives the wrong language.
             $attributes = [
                 'subject' => collect(array_keys(config('kompo.locales')))
-                    ->mapWithKeys(fn($locale) => [$locale => executeCallbackInLocale($locale, fn() => $trigger::getName())]),
+                    ->mapWithKeys(fn($locale) => [$locale => executeCallbackInLocale(
+                        $locale,
+                        fn() => (method_exists($trigger, 'getSubject') ? $trigger::getSubject() : null) ?: $trigger::getName(),
+                    )]),
                 'content' => $content->toArray(),
             ];
 

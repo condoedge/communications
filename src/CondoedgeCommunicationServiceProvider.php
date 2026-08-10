@@ -7,6 +7,8 @@ use Condoedge\Communications\EventsHandling\CommunicationTriggeredListener;
 use Condoedge\Communications\EventsHandling\Contracts\CommunicableEvent;
 use Condoedge\Communications\Facades\ContentReplacer;
 use Condoedge\Communications\Models\CommunicationTemplateGroup;
+use Condoedge\Communications\Reminders\Console\PruneReminderClaimsCommand;
+use Condoedge\Communications\Reminders\Console\SendScheduledRemindersCommand;
 use Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\ContextEnhancer;
 use Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\MessageContentReplacer;
 use Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\Parsers\BraceMentionParser;
@@ -59,6 +61,8 @@ class CondoedgeCommunicationServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 SeedTemplatesCommand::class,
+                SendScheduledRemindersCommand::class,
+                PruneReminderClaimsCommand::class,
             ]);
         }
     }
@@ -172,7 +176,8 @@ class CondoedgeCommunicationServiceProvider extends ServiceProvider
     protected function loadListeners()
     {
         $this->verifyCommunicationTriggers();
-        
+        $this->verifyReminders();
+
         Event::listen(CommunicationTemplateGroup::getTriggers(), CommunicationTriggeredListener::class);
     }
 
@@ -191,9 +196,80 @@ class CondoedgeCommunicationServiceProvider extends ServiceProvider
         }
     }
 
+    /**
+     * Fails closed at boot, exactly as verifyCommunicationTriggers() does.
+     *
+     * A reminder registered under a name that does not exist, or sharing a key with another, is a
+     * deploy-time exception rather than a fatal in an unattended 3am cron.
+     */
+    protected function verifyReminders()
+    {
+        app(\Condoedge\Communications\Reminders\ReminderRegistry::class)->validate();
+    }
+
     protected function loadCrons()
     {
-        // TODO WE SHOULD REMOVE OLD VOID GROUP TEMPLATES 
-        $schedule = $this->app->make(Schedule::class);
+        if (!$this->app->runningInConsole()) {
+            // Guarded rather than run unconditionally, because resolving Schedule::class is not the
+            // cheap lookup it looks like: the singleton's resolver (verified in framework 11.55.0 at
+            // Illuminate/Foundation/Providers/FoundationServiceProvider.php:107) is
+            // $app->make(ConsoleKernel::class)->resolveConsoleSchedule(), which CONSTRUCTS the
+            // Console Kernel and runs the HOST's entire schedule() definition. Doing that on every
+            // web request buys nothing — no web request ever runs a scheduled event.
+            return;
+        }
+
+        // Deferred into booted() rather than registered inline, because the Schedule singleton's
+        // resolver runs the host's own schedule() method (see the guard above). Resolving it from a
+        // provider's boot() would therefore execute the host's schedule definition part-way through
+        // the boot cycle, before providers registered after this one have booted — a host whose
+        // schedule() touches a later provider's binding would fail at boot with an error naming
+        // neither the schedule nor this package. condoedge/finance and condoedge/utils both defer
+        // the same way (CondoedgeFinanceServiceProvider.php:241, CondoedgeUtilsServiceProvider.php:273).
+        $this->app->booted(function () {
+            $schedule = $this->app->make(Schedule::class);
+
+            // Hourly rather than daily because a scope carries its own send time: a once-a-day
+            // command can only ever honour one hour. 23 of the 24 runs short-circuit before any
+            // subject query. withoutOverlapping because an hourly command can meet itself; the
+            // claim ledger makes that safe, but a doubled console log is a support ticket nobody
+            // needs.
+            //
+            // 55 minutes rather than the framework default of 1440. The mutex is released only on a
+            // clean finish or a caught throw, so a sweep killed by SIGKILL or OOM leaves an orphan
+            // that expires on TTL alone; 55 < the 60-minute cadence guarantees it is dead before the
+            // next firing. At 1440 one hard kill suppresses 24 consecutive sweeps — and a suppressed
+            // sweep is not deferred, because the run hour comes from the wall clock, so that day's
+            // reminders are lost outright with exit code 0 and no log line.
+            //
+            // Scheduled from the package rather than left to each host to write, because the
+            // CADENCE IS PACKAGE KNOWLEDGE: a host reading "send reminders" would reasonably write
+            // ->daily(), and would then silently drop every scope whose send hour is not the one it
+            // picked. That failure is invisible — no error, just reminders that never arrive.
+            //
+            // Known consequence, accepted deliberately: a host that ALSO schedules this command by
+            // name gets two entries and sweeps hourly instead of at its chosen hour. Bounded, not
+            // dangerous — the sweep is idempotent per subject and offset via the claim table's
+            // unique index, so the extra runs claim nothing and send nothing; they cost queries and
+            // log lines, not duplicate emails.
+            //
+            // The host's own schedule line is deleted when it adopts this layer and its hour moves
+            // into reminders.default_hour — but note what does NOT move: ReminderScope::hour()
+            // discards the minute, so the cron minute here is the only minute that exists. SISC's
+            // dailyAt('09:30') was chosen so a volunteer never got two emails in the same minute as
+            // its 09:00 chase; default_hour = 9 reinstates that collision. A host that needs to stay
+            // off another job's minute must pick a different HOUR.
+            $schedule->command('communications:send-reminders')
+                ->hourly()
+                ->onOneServer()
+                ->withoutOverlapping(55);
+
+            $schedule->command('communications:prune-reminder-claims')
+                ->weeklyOn(1, '03:00')
+                ->onOneServer();
+        });
+
+        // TODO: a cron to remove old void group templates still needs adding here. Unrelated to the
+        // reminder schedule above — it concerns CommunicationTemplateGroup, not reminders.
     }
 }

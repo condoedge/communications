@@ -26,7 +26,18 @@ class CommunicationByTeamList extends WhiteTable
         $this->rows = app(CommunicationStatsServiceContract::class)->perTeam([(int) $this->teamId]);
 
         $ids = $this->rows->pluck('teamId')->filter()->unique();
-        $this->teamNames = TeamModel::asSystemOperation()->whereIn('id', $ids)->pluck('team_name', 'id');
+
+        // ->get()->pluck(), NOT ->pluck() on the builder. Builder::pluck() opens with
+        // `$this->toBase()->pluck($column, $key)` and only consults hasAnyGetMutator afterwards, so
+        // the column name goes into the SELECT literally and an accessor can never rescue it. A host
+        // whose teams table does not have a physical `team_name` column then gets
+        // SQLSTATE[42S22] Unknown column 'team_name' on every boot of this component, with no seam
+        // to fix it from — which is exactly what Coolecto hit (its column is `name`).
+        //
+        // Collection::pluck() reads the ATTRIBUTE, so getTeamNameAttribute() is enough. That makes
+        // the model the single naming seam for both reads in this package — this one and
+        // CommunicationTemplatesList::inheritedLabel(), which was already hydrated.
+        $this->teamNames = TeamModel::asSystemOperation()->whereIn('id', $ids)->get()->pluck('team_name', 'id');
     }
 
     public function query()
