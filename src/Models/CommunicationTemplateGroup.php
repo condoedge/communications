@@ -174,10 +174,28 @@ class CommunicationTemplateGroup extends Model
             $sluggedName = \Str::slug(\Str::snake($className));
             $viewName = "stubs/communication-templates/default-{$sluggedName}-{$type->value}";
 
-            $content = collect(array_keys(config('kompo.locales')))->mapWithKeys(function($locale) use ($viewName) { 
+            // Rendered INSIDE executeCallbackInLocale, and picking the per-locale stub file is not
+            // enough on its own. The file supplies the prose, but every __() evaluated DURING the
+            // render resolves against the ACTIVE locale — and mention chips are built that way,
+            // HtmlMentionParser::buildVar() emitting '<span data-mention="ID">' . __($var[1]) . '</span>'.
+            // Without the switch, seeding under a French default stamps the English template with
+            // English prose and FRENCH chip labels. It hides well: the row looks like a complete
+            // translation map, the sentences are right, and the only reader who sees it is the admin
+            // who later opens that template in the editor. It is also permanent — baselineExists()
+            // asks whether the GROUP exists, so re-seeding reports "Nothing to do." and never
+            // re-derives a body.
+            //
+            // Hoisting one switch around the whole mapWithKeys was the rejected alternative: it
+            // renders every locale under whichever one happened to be first, which is the same bug
+            // with a tidier shape. The sibling 'subject' mapping below resolves per locale for this
+            // reason; content had simply never been given the same treatment.
+            $content = collect(array_keys(config('kompo.locales')))->mapWithKeys(function($locale) use ($viewName) {
                 if (!file_exists(resource_path('views/' . $viewName . '-' . $locale . ".blade.php"))) return [$locale => ''];
 
-                return [$locale => view($viewName .'-'. $locale)->render()];
+                return [$locale => executeCallbackInLocale(
+                    $locale,
+                    fn() => view($viewName .'-'. $locale)->render(),
+                )];
             })->filter();
 
             if (!$content->count()) {
@@ -190,10 +208,13 @@ class CommunicationTemplateGroup extends Model
             // the next seed publishes the admin title as the recipient subject, turning a sentence
             // about an order into one about a delivery, with a green suite and no error. Such a
             // trigger declares `public static function getSubject(): string` and that answers here,
-            // and only at SEED time — TemplateSeedingService skips a trigger whose baseline row
-            // already exists, so declaring getSubject() on an already-seeded trigger changes
-            // nothing and reports nothing; from then on the seeded row is the source of truth and
-            // must be edited in the admin instead.
+            // and only when a group is CREATED — TemplateSeedingService skips a trigger whose
+            // baseline row already exists (TemplateSeedingService:33), so adding getSubject() later
+            // never rewrites the baseline. It is not inert, though: seedOwnedGroup() in
+            // CommunicationTemplatesList (:343) also builds through here, so a team that configures
+            // its own override after the change gets the new subject while the baseline keeps the
+            // old one. Reconcile in the admin rather than re-deriving on read — a seeded row is the
+            // source of truth and an admin edit must not be silently reverted by a later deploy.
             //
             // An empty return falls back to getName() rather than seeding it, because an empty
             // subject is indistinguishable from a correctly-seeded row in the database,
@@ -203,15 +224,24 @@ class CommunicationTemplateGroup extends Model
             // Duck-typed rather than a fifth method on CommunicableEvent: every registered trigger
             // in every host already implements that interface, so adding a method to it makes all
             // of them fatal on the deploy that ships this line. A trait carrying a default fails
-            // the same way inverted — it is permissive only for classes that remember to `use` it,
-            // and a trigger that forgets seeds no subject at all instead of the one it seeds today.
+            // the same way, one deploy later: the seam would have to call getSubject() unguarded,
+            // so a trigger that forgets to `use` the trait is a fatal undefined-method at seed
+            // time — and the forgetting is invisible at review, because a trigger looks complete
+            // without it. method_exists has no such precondition.
             //
-            // Not a second opt-in interface either, though the package ships three
-            // (TeamScopedCommunicableEvent, DatabaseCommunicableEvent, TaskCommunicableEvent) —
-            // every one is tested against an instance (CommunicationTriggeredListener:87), and
-            // seeding holds only a class-string, so the check would have to become
-            // is_a($trigger, X::class, true), a form used nowhere in src/, making this the one seam
-            // a maintainer cannot pattern-match against the package's other method_exists hooks.
+            // Not a second opt-in interface either. The package ships three
+            // (TeamScopedCommunicableEvent, DatabaseCommunicableEvent, TaskCommunicableEvent) and
+            // can class-string-test them — AbstractCommunicationHandler::typeIsValidToTrigger()
+            // does exactly that with class_implements(), as do ServiceProvider:193 and
+            // ReminderRegistry:68 — so the mechanism is available. It loses on a different ground:
+            // an interface is permissive only for hosts that hear it exists, and a trigger whose
+            // author never imported it seeds the admin title to recipients with no signal, the
+            // exact failure this seam prevents. A duck-typed static is permissive by ABSENCE, which
+            // is what makes the 34 already-registered triggers correct without an edit, and it is
+            // the shape four other trigger hooks already use (acceptsChannel :131,
+            // defaultNotificationButtonHandler :244, validNotificationButtonHandlers
+            // TemplateSeedingService:70, defaultNotificationButtonLabelAndAction
+            // TemplateSeedingService:130).
             //
             // Resolved INSIDE executeCallbackInLocale. Hoisting the call out of the closure would
             // stamp every locale with the wording of whichever locale happened to be active when

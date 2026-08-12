@@ -4,6 +4,8 @@ namespace Condoedge\Communications\Tests\Feature;
 
 use Condoedge\Communications\Models\CommunicationTemplateGroup;
 use Condoedge\Communications\Models\CommunicationType;
+use Condoedge\Communications\Tests\Stubs\EmptySubjectTrigger;
+use Condoedge\Communications\Tests\Stubs\NamelessTrigger;
 use Condoedge\Communications\Tests\Stubs\SubjectOverridingTrigger;
 use Condoedge\Communications\Tests\Stubs\TitleOnlyTrigger;
 use Condoedge\Communications\Tests\TestCase;
@@ -73,6 +75,26 @@ class TemplateSeedingSubjectTest extends TestCase
     }
 
     /**
+     * The declared-but-empty case. A subject built from a translation returns '' when its key is
+     * missing, and an empty subject is indistinguishable in the database from a correctly-seeded
+     * row — it surfaces only as a subject-less email in a recipient's inbox. Nothing else in this
+     * file reaches the falsy arm of the seeding site's `?:`, so without this test that expression
+     * can be collapsed to a plain method_exists ternary with the suite still green.
+     */
+    public function test_an_empty_get_subject_falls_back_to_the_name()
+    {
+        $this->writeContentStubsFor(EmptySubjectTrigger::class);
+
+        $group = CommunicationTemplateGroup::createForTrigger(EmptySubjectTrigger::class);
+
+        $this->assertSame(
+            ['en' => 'name-en', 'fr' => 'name-fr'],
+            $this->seededSubject($group),
+            'an empty getSubject() seeded an empty subject instead of falling back to getName()',
+        );
+    }
+
+    /**
      * The subject must be resolved INSIDE executeCallbackInLocale(). Hoisting the call out of the
      * closure gives every locale the wording of whichever locale happened to be active at seed
      * time — a French-only mailing list quietly receiving English subject lines.
@@ -137,6 +159,10 @@ class TemplateSeedingSubjectTest extends TestCase
         $this->assertSame('—', CommunicationTemplateGroup::triggerName(null));
 
         $this->assertSame('name-en', CommunicationTemplateGroup::triggerName(SubjectOverridingTrigger::class));
+
+        // The other '—': a trigger that loads and answers empty. Both cases above return through
+        // the class_exists/method_exists guard, so this is the only reach into `getName() ?: '—'`.
+        $this->assertSame('—', CommunicationTemplateGroup::triggerName(NamelessTrigger::class));
     }
 
     /**
