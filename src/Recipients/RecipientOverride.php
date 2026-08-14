@@ -8,13 +8,14 @@ use Condoedge\Communications\Services\CommunicationHandlers\Contracts\DatabaseCo
 use Condoedge\Communications\Services\CommunicationHandlers\Contracts\EmailCommunicable;
 use Condoedge\Communications\Services\CommunicationHandlers\Contracts\SmsCommunicable;
 use Condoedge\Communications\Services\CommunicationHandlers\Contracts\TaskCommunicable;
+use Illuminate\Contracts\Translation\HasLocalePreference;
 
 /**
  * RecipientOverride
  *
  * Fluent, send-time decorator around any Communicable. Lets callers swap the
- * email/phone for a single send and/or restrict which channels actually fire
- * for that recipient.
+ * email/phone/locale for a single send and/or restrict which channels actually
+ * fire for that recipient.
  *
  * Statically declares every channel contract; runtime gating happens through
  * the ChannelAware hook consumed by AbstractCommunicationHandler::notify().
@@ -24,11 +25,12 @@ class RecipientOverride implements
     SmsCommunicable,
     DatabaseCommunicable,
     TaskCommunicable,
-    ChannelAware
+    ChannelAware,
+    HasLocalePreference
 {
     protected Communicable $inner;
 
-    /** @var array<string, mixed> e.g. ['email' => '...', 'phone' => '...'] */
+    /** @var array<string, mixed> e.g. ['email' => '...', 'phone' => '...', 'locale' => 'fr'] */
     protected array $overrides = [];
 
     /** @var array<int, class-string>|null null = all channels the inner supports */
@@ -70,6 +72,38 @@ class RecipientOverride implements
     }
 
     /**
+     * The language THIS send must be written in. null leaves the ambient locale alone.
+     *
+     * WITHOUT THIS SEAM A DECORATED SEND CANNOT CARRY A LANGUAGE AT ALL, and the failure is silent:
+     * both readers test `instanceof HasLocalePreference` on the OUTER object
+     * (EmailCommunicationHandler.php:52, AbstractCommunicationHandler.php:241), so before this class
+     * declared the interface the message rendered in whatever locale the process happened to be on —
+     * for a queued send that is config('app.locale'), which has nothing to do with the recipient.
+     * Nothing fails; a correct-looking message ships in the wrong language. Measured in Coolecto:
+     * CampaignStartingProductsReview's legacy sender rendered fr from the campaign and its ported
+     * form rendered the ambient en, and every test it had still passed.
+     *
+     * FORWARDING TO THE INNER WHEN THE INNER IS A HasLocalePreference WAS REJECTED, although the
+     * decorator forwards every other accessor and Coolecto's own port contract proposed it. It is
+     * not inert for hosts that made no edit: SISC wraps App\Models\Crm\Person — which implements
+     * HasLocalePreference — at seven event classes, and 91 of its 338,653 persons resolve a non-null
+     * preferredLocale(), so those sends would change language on a package upgrade alone, with no
+     * host edit and no gate to hold it. Answering only what a caller passed here leaves
+     * every existing wrapper exactly as it was, and a host that WANTS the inner's language passes
+     * `$inner->preferredLocale()` and says so at the call site.
+     *
+     * Which is also why an explicit null is not distinguished from "never called": with no
+     * forwarding the two mean the same thing, and both package readers short-circuit on a falsy
+     * locale, so `->withLocale($campaign?->getLanguage())` on a deleted campaign degrades to today's
+     * behaviour rather than to a different one.
+     */
+    public function withLocale(?string $locale): self
+    {
+        $this->overrides['locale'] = $locale;
+        return $this;
+    }
+
+    /**
      * Restrict the recipient to the given channel interfaces.
      *
      * @param array<int, class-string> $interfaces
@@ -101,6 +135,12 @@ class RecipientOverride implements
     public function getPhone()
     {
         return $this->overrides['phone'] ?? $this->inner->getPhone();
+    }
+
+    /** Only what withLocale() was given — see there for why the inner is deliberately not consulted. */
+    public function preferredLocale()
+    {
+        return $this->overrides['locale'] ?? null;
     }
 
     public function getUserId()

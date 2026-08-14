@@ -2,6 +2,7 @@
 
 namespace Condoedge\Communications\Models;
 
+use Condoedge\Communications\Recipients\EmailGroup;
 use Condoedge\Communications\Recipients\RecipientKey;
 use Condoedge\Communications\Services\CommunicationHandlers\Contracts\EmailCommunicable;
 use Condoedge\Communications\Services\CommunicationHandlers\Contracts\HasCommunicationTeam;
@@ -82,7 +83,7 @@ class CommunicationSending extends Model
             $row->status = CommunicationSendingRecipientStatus::PENDING;
             $row->name = secureCallCb(fn () => (string) $communicable->label()) ?: null;
             // Maybe it should be more abstract and just call a generic method that fills a "contact_info" field. This is something pending to change
-            $row->email = secureCallCb(fn () => $communicable instanceof EmailCommunicable ? $communicable->getEmail() : null);
+            $row->email = secureCallCb(fn () => static::loggedAddressFor($communicable));
 
             if ($identity instanceof EloquentModel) {
                 $row->recipient()->associate($identity);
@@ -94,6 +95,75 @@ class CommunicationSending extends Model
 
             $row->recordTeams($this->teamsForRecipient($identity, $communicationTeams, $templateTeamId));
         }
+    }
+
+    /**
+     * What goes in the row's `email` column: the To: header this recipient will actually produce.
+     *
+     * FOR A GROUP THAT IS THE WHOLE LIST, not one member of it. The row is the only durable record
+     * of who was written to, and a group occupies exactly one row (one communicable, one position,
+     * one message), so recording one address of five would name a fifth of the audience and hide
+     * the rest with nothing to indicate anything was hidden.
+     *
+     * IT IS DERIVED FROM THE GROUP SEAM RATHER THAN FROM getEmail(), although a well-behaved group
+     * answers the same string there. Reading getEmail() would make the log correct only for hosts
+     * that happened to spell their group's getEmail() that way, i.e. correct by convention — and a
+     * convention is exactly what a send log cannot rest on.
+     *
+     * THE CAP IS NOT COSMETIC. `email` is a varchar(255)
+     * (2026_06_25_000003_create_communication_sending_recipients_table.php:30) and this write runs
+     * inside createOneForCommunicationTemplate()'s transaction, so an over-length value either gets
+     * silently truncated mid-address or, under MySQL's strict mode, throws and aborts the whole
+     * sending — the organisation is then never written to at all. Measured on Coolecto's
+     * `financement` 2026-08-11: 2 of 3,945 organisations have an owner-and-manager address list
+     * that joins to more than 255 characters, the longest being 866. So the list is truncated at a
+     * COMMA, never inside an address, and the count of what was dropped is kept.
+     */
+    protected static function loggedAddressFor($communicable): ?string
+    {
+        if (!$communicable instanceof EmailCommunicable) {
+            return null;
+        }
+
+        if (!EmailGroup::isGroup($communicable)) {
+            return $communicable->getEmail();
+        }
+
+        return static::joinWithinColumn(EmailGroup::addressesOf($communicable));
+    }
+
+    /** @param string[] $addresses */
+    protected static function joinWithinColumn(array $addresses, int $limit = 255): ?string
+    {
+        if ($addresses === []) {
+            return null;
+        }
+
+        $joined = implode(', ', $addresses);
+
+        if (mb_strlen($joined) <= $limit) {
+            return $joined;
+        }
+
+        $kept = [];
+        $length = 0;
+
+        foreach ($addresses as $address) {
+            // Reserve room for the marker before deciding an address fits, so the marker itself can
+            // never be what pushes the value over the column width.
+            $suffix = ' (+' . (count($addresses) - count($kept)) . ' more)';
+            $candidate = $length + ($kept === [] ? 0 : 2) + mb_strlen($address);
+
+            if ($candidate + mb_strlen($suffix) > $limit) {
+                break;
+            }
+
+            $kept[] = $address;
+            $length = $candidate;
+        }
+
+        return ($kept === [] ? '' : implode(', ', $kept) . ' ')
+            . '(+' . (count($addresses) - count($kept)) . ' more)';
     }
 
     /**
