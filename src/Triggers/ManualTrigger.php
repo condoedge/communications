@@ -45,7 +45,7 @@ class ManualTrigger implements CommunicableEvent, DatabaseCommunicableEvent
             return config('kompo-communications.manual-trigger.valid-variables.' . $context['communicable_type'], null);
         }
 
-        return config('kompo-communications.manual-trigger.valid-variables.generic', []);
+        return config('kompo-communications.manual-trigger.valid-variables.generic', null);
     }
 
     function getCommunicables(): array

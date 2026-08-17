@@ -83,6 +83,12 @@ class MessageContentReplacer
         return $this;
 	}
 
+    /** The handlers actually registered, keyed by variable id. */
+    public function getHandlers(): array
+    {
+        return $this->handlers;
+    }
+
     /**
      * A generic enhancer to be used to post process the result of the handlers. It will be applied in the order they were set
      * The specific case because i created this was to parse mail elements in the handlers
@@ -138,6 +144,11 @@ class MessageContentReplacer
 	 * @return mixed
 	 */
 	public function replace(?CommunicationType $type = null)
+    {
+        return executeInBypassContext(fn () => $this->replaceInBypassContext($type));
+    }
+
+    protected function replaceInBypassContext(?CommunicationType $type = null)
     {
         $parsedText = $this->text;
 
@@ -235,7 +246,7 @@ class MessageContentReplacer
     {
         $parts = explode('.', $id);
         $modelName = $parts[0];
-        $attribute = $parts[1] ?? null;
+        $attributes = array_slice($parts, 1);
         $replaceWith = '';
 
         if (!isset($this->context[$modelName])) {
@@ -244,15 +255,31 @@ class MessageContentReplacer
             return $parsedText; // If the model is not in the context, skip replacement
         }
 
-        if ($attribute) {
-            if (method_exists($this->context[$modelName], $attribute)) {
-                $replaceWith = $this->context[$modelName]->$attribute();
-            } elseif (property_exists($this->context[$modelName] ?? new \stdClass, $attribute) || method_exists($this->context[$modelName] ?? new \stdClass, 'getAttribute')) {
-                $replaceWith = $this->context[$modelName]?->$attribute;
+        $replaceValue = $this->context[$modelName];
+
+        while (!empty($attributes)) {
+            $attribute = array_shift($attributes);
+
+            if (method_exists($replaceValue, $attribute)) {
+                $replaceValue = $replaceValue->$attribute();
+            } elseif (property_exists($replaceValue ?? new \stdClass, $attribute) || method_exists($replaceValue ?? new \stdClass, 'getAttribute')) {
+                $replaceValue = $replaceValue?->$attribute;
             }
-        } else {
-            $replaceWith = $this->context[$modelName];
+
+            // If the part was a relationship it will catch the method so we must ensure we retrieve what a getAttribute would do
+            if ($replaceValue instanceof \Illuminate\Database\Eloquent\Relations\Relation) {
+                $isNextPartAPosition = is_numeric($attribute[0] ?? null);
+
+                // If it's a position we just remove it since we handle it here
+                if ($isNextPartAPosition) {
+                    array_shift($attributes);
+                }
+
+                $replaceValue = $isNextPartAPosition ? $replaceValue->get($attribute[0]) : $replaceValue->first();
+            } 
         }
+
+        $replaceWith = $replaceValue;
 
         if (is_callable($replaceWith)) {
             $args = $this->getHandlerArguments($replaceWith, null);
@@ -260,7 +287,25 @@ class MessageContentReplacer
             $replaceWith = $replaceWith(...$args);
         }
 
-        return $parser->replaceMention($parsedText, $id, $replaceWith);
+        // We still replace it but by a placeholder to not leave an empty var
+        if (!$this->isRenderable($replaceWith)) {
+            Log::warning("Variable $id resolved to a non-renderable value;", [
+                'type' => get_debug_type($replaceWith),
+            ]);
+
+            $replaceWith = __('translate.unknown-value');
+        }
+
+        return $parser->replaceMention($parsedText, $id, (string) $replaceWith);
+    }
+
+    /** Can this value be cast to string without throwing? */
+    protected function isRenderable($value): bool
+    {
+        return $value === null
+            || is_scalar($value)
+            || $value instanceof \Stringable
+            || (is_object($value) && method_exists($value, '__toString'));
     }
 
     /**
