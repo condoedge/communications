@@ -29,6 +29,9 @@ class DefaultLayoutEmailCommunicable extends Mailable
 {
     use ConvertsHtmlToPlainText;
 
+    /** Internal marker read by the mailer-level suppression backstop, then removed before sending. */
+    public const SUPPRESSIBLE_HEADER = 'X-Communication-Suppressible';
+
     public $communication;
     public $params;
 
@@ -48,13 +51,18 @@ class DefaultLayoutEmailCommunicable extends Mailable
 
         $this->applySenderOverrides();
         $this->applyUnsubscribeHeaders();
+        $this->applySuppressibleMarker();
+
+        $unsubscribeUrl = $this->params['unsubscribe_url'] ?? null;
 
         return $this->markdown('condoedge-comms::emails.communication-layout', [
                 'content' => $content,
                 'preheader' => $preheader,
+                'unsubscribeUrl' => $unsubscribeUrl,
             ])
             ->text('condoedge-comms::emails.communication-layout-text', [
                 'text' => $plainText,
+                'unsubscribeUrl' => $unsubscribeUrl,
             ]);
     }
 
@@ -72,6 +80,22 @@ class DefaultLayoutEmailCommunicable extends Mailable
         if (!empty($this->params['reply_to'])) {
             $this->replyTo($this->params['reply_to'], $this->params['reply_to_name'] ?? null);
         }
+    }
+
+    /**
+     * Mark the message as one an unsubscribe may stop. Opt-in on purpose: unmarked mail is never
+     * blocked, so a password reset cannot be silenced by a misclassification. The backstop strips
+     * the header again before the message goes out.
+     */
+    protected function applySuppressibleMarker(): void
+    {
+        if (empty($this->params['communication_suppressible'])) {
+            return;
+        }
+
+        $this->withSymfonyMessage(function ($message) {
+            $message->getHeaders()->addTextHeader(self::SUPPRESSIBLE_HEADER, '1');
+        });
     }
 
     /**

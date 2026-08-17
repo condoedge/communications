@@ -79,12 +79,29 @@ abstract class AbstractCommunicationHandler
                 return false;
             }
 
+            if ($reason = $this->suppressionReasonFor($c)) {
+                $this->report->skipped($position, $reason); // consent withdrawn — no warning
+
+                return false;
+            }
+
             return true;
         });
 
         $this->notifyCommunicables($communicables->all(), $params);
 
         return $this->report;
+    }
+
+    /**
+     * Why this recipient must not be contacted on this channel, or null to proceed. Separate from
+     * ChannelAware: that asks the recipient what it supports, this asks whether consent allows it.
+     *
+     * @return string|null short reason recorded on the recipient row
+     */
+    protected function suppressionReasonFor($communicable): ?string
+    {
+        return null;
     }
 
     /**
@@ -160,8 +177,14 @@ abstract class AbstractCommunicationHandler
         return [
             _Translatable('Subject')->name('subject', false)->default(json_decode($attrs['subject'] ?? '{}')),
             _EnhancedEditor('Content')->name('content', false)->default(json_decode($attrs['content'] ?? '{}'))
-                ->filterVarsToThisIds($trigger::validVariablesIds(context: $context)),
+                ->filterVarsToThisIds($this->editorVariableIds($trigger, $context)),
         ];
+    }
+
+    /** The variables the editor offers. A channel may add its own on top of the trigger's. */
+    protected function editorVariableIds($trigger, $context): ?array
+    {
+        return $trigger::validVariablesIds(context: $context);
     }
 
     /**

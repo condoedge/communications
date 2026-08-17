@@ -39,7 +39,7 @@ class CommunicationSendingModal extends Form
                         _Html($recipient->name ?: '—')->class('font-medium'),
                         _Html($recipient->email ?: '—')->class('text-sm text-gray-500'),
                     ),
-                    $this->statusPill($recipient->status),
+                    $this->statusPill($recipient->status, $recipient->error_message),
                 )->class('border-b py-2')),
             )->class('overflow-y-auto')->style('max-height: 75vh'),
         );
@@ -53,8 +53,11 @@ class CommunicationSendingModal extends Form
         );
     }
 
-    protected function statusPill(?CommunicationSendingRecipientStatus $status)
+    protected function statusPill(?CommunicationSendingRecipientStatus $status, $errorMessage = null)
     {
-        return $status ? $status->statusPill() : _Html('—')->class('text-gray-400');
+        return _Rows(
+            $status ? $status->statusPill() : _Html('—')->class('text-gray-400'),
+            _Html($errorMessage)->class('text-xs text-gray-600 mt-1'),
+        );
     }
 }
