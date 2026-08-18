@@ -257,7 +257,7 @@ class MessageContentReplacer
 
         $replaceValue = $this->context[$modelName];
 
-        while (!empty($attributes)) {
+        while (!empty($attributes) && !is_null($replaceValue)) {
             $attribute = array_shift($attributes);
 
             if (method_exists($replaceValue, $attribute)) {
