@@ -12,16 +12,6 @@ use Illuminate\Support\Str;
  * an inbox-preview preheader, and — when the host supplies them via $params —
  * RFC 2369 / RFC 8058 unsubscribe headers and an aligned From / Reply-To.
  *
- * All deliverability params are OPTIONAL so existing callers keep working. The
- * host (which owns its verified sending domain) is expected to pass:
- *   - 'from'                => 'no-reply@example.com'   sender aligned with SPF/DKIM/DMARC
- *   - 'from_name'           => 'Example'
- *   - 'reply_to'            => 'support@example.com'
- *   - 'reply_to_name'       => 'Example Support'
- *   - 'unsubscribe_url'     => signed HTTPS URL accepting GET (page) + POST (one-click)
- *   - 'unsubscribe_mailto'  => 'unsubscribe@example.com'
- *   - 'preheader'           => short inbox-preview text (auto-derived from content if absent)
- *
  * This package stays domain-agnostic on purpose: it is shared across projects,
  * so it never hardcodes a brand domain.
  */
