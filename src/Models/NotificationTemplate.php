@@ -102,6 +102,8 @@ class NotificationTemplate extends Model
                         'custom_button_href' => ContentReplacer::setText($this->custom_button_href)->replace(CommunicationType::DATABASE),
                         'has_reminder_button' => $this->has_reminder_button,
                         'custom_button_handler' => $this->custom_button_handler,
+
+                        'is_banner_type' => $recipientParams['is_banner_type'] ?? false,
                     ];
 
                     $delivered[$position] = true;
