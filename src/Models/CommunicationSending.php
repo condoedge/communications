@@ -22,12 +22,12 @@ class CommunicationSending extends Model
     // RELATIONSHIPS
     public function communicationTemplate()
     {
-        return $this->belongsTo(CommunicationTemplate::class);
+        return $this->belongsTo(CommunicationTemplate::class)->withTrashed();
     }
 
     public function recipients()
     {
-        return $this->hasMany(CommunicationSendingRecipient::class, 'communication_sending_id');
+        return $this->hasMany(CommunicationSendingRecipient::class, 'communication_sending_id')->withTrashed();
     }
 
     /**

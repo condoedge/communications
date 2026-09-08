@@ -17,9 +17,11 @@ class NotificationTemplate extends Model
 {
     use \Kompo\Database\HasTranslations;
 
+    use \Illuminate\Database\Eloquent\SoftDeletes;
+
     public function communication()
     {
-        return $this->belongsTo(CommunicationTemplate::class);
+        return $this->belongsTo(CommunicationTemplate::class)->withTrashed();
     }
 
     protected $translatable = [

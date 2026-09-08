@@ -130,9 +130,9 @@ class CommunicationTemplate extends Model
 
     public function delete()
     {
-        if ($this->communicationSendings()->count()) {
-            abort(403, 'error.cannot-delete-a-communication-with-sendings');
-        }
+        // if ($this->communicationSendings()->count()) {
+        //     abort(403, 'error.cannot-delete-a-communication-with-sendings');
+        // }
 
         NotificationTemplate::where('communication_id', $this->id)->delete();
 

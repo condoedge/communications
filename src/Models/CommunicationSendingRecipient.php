@@ -16,12 +16,12 @@ class CommunicationSendingRecipient extends Model
     // RELATIONSHIPS
     public function communicationSending()
     {
-        return $this->belongsTo(CommunicationSending::class);
+        return $this->belongsTo(CommunicationSending::class)->withTrashed();
     }
 
     public function recipient()
     {
-        return $this->morphTo();
+        return $this->morphTo()->withTrashed();
     }
 
     // ACTIONS
