@@ -8,6 +8,7 @@ use Condoedge\Communications\Services\CommunicationHandlers\Contracts\DatabaseCo
 use Condoedge\Communications\Services\CommunicationHandlers\Contracts\EmailCommunicable;
 use Condoedge\Communications\Services\CommunicationHandlers\Contracts\SmsCommunicable;
 use Condoedge\Communications\Services\CommunicationHandlers\Contracts\TaskCommunicable;
+use Illuminate\Contracts\Translation\HasLocalePreference;
 
 /**
  * RecipientOverride
@@ -24,7 +25,8 @@ class RecipientOverride implements
     SmsCommunicable,
     DatabaseCommunicable,
     TaskCommunicable,
-    ChannelAware
+    ChannelAware,
+    HasLocalePreference
 {
     protected Communicable $inner;
 
@@ -126,6 +128,15 @@ class RecipientOverride implements
     public function label()
     {
         return $this->inner->label();
+    }
+
+    public function preferredLocale()
+    {
+        if (!method_exists($this->inner, 'preferredLocale')) {
+            return config('kompo.force_initial_locale', 'fr');
+        }
+
+        return $this->inner->preferredLocale();
     }
 
     // -- Communicable base scope methods ------------------------------------
