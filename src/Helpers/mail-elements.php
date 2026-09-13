@@ -4,10 +4,17 @@ use Condoedge\Communications\Services\MailElements\CenteredElement;
 use Condoedge\Communications\Services\MailElements\MailButton;
 use Condoedge\Communications\Services\MailElements\MailGeneric;
 use Condoedge\Communications\Services\MailElements\MailImage;
+use Condoedge\Communications\Services\MailElements\MailRows;
 
 function _MailButton($label)
 {
     return new MailButton($label);
+}
+
+/** Accepts elements, raw html strings, arrays or collections — like _Rows. */
+function _MailRows(...$elements)
+{
+    return new MailRows($elements);
 }
 
 function _MailImage($alt = '')
