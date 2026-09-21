@@ -59,36 +59,60 @@ class CommunicationTemplateForm extends Modal
     
     public function body()
     {
+        $channel = $this->defaultChannel($this->model->trigger);
+
         return _Rows(
-            $this->directUsage ? _Rows(
-                _Hidden()->name('title')->value($this->model->title),
-                _Hidden()->name('trigger')->value($this->model->trigger),
-            ) : ($this->model->id ? _Rows(
-                // Editing an existing group: the trigger is already fixed, so keep it hidden.
-                _Input('Name')->name('title')->value($this->model->title),
-                _Hidden()->name('trigger')->value($this->model->trigger),
-            ) : _Rows(
-                _Input('Name')->name('title'),
+            $this->mainFields(),
 
-                _Select('trigger')->name('trigger')
-                    ->config(['floatingOptions' => true])
-                    ->options(collect(CommunicationTemplateGroup::getTriggers())->mapWithKeys(fn($trigger) => [$trigger => $trigger::getName()]))
-                    ->selfPost('saveAndGetNewFormTypes')
-                    ->inPanel('communication-type-form')
-                    ->panelLoading('communication-type-form'),
-            )),
-
-
-            !$this->model->id ? _Rows(
+            !$this->showsChannels() ? _Rows(
                 _Html('communications.fill-main-data-help')->class('text-center mb-4'),
             )  : _Panel(
                 $this->getFormsTypes(
-                    CommunicationType::EMAIL->handler($this->model->findCommunicationTemplate(CommunicationType::EMAIL->value))->getForm($this->model->trigger, $this->context),
+                    $channel->handler($this->model->findCommunicationTemplate($channel->value))->getForm($this->model->trigger, $this->context),
                 )
             )->id('communication-type-form-container'),
 
             _SubmitButton($this->submitButtonMessage())->refresh('communications-list')
-                ->when($this->model->id, fn($el) => $el->closeModal()),
+                ->when($this->showsChannels(), fn($el) => $el->closeModal()),
+        );
+    }
+
+    /**
+     * Whether the editor is on its channels screen. A group picked by hand needs its trigger saved
+     * first (the "Next" step); an extension that already knows the trigger goes straight there.
+     */
+    protected function showsChannels(): bool
+    {
+        return (bool) $this->model->id;
+    }
+
+    /** Title + trigger. An extension that already knows its trigger overrides only this. */
+    protected function mainFields()
+    {
+        if ($this->directUsage) {
+            return _Rows(
+                _Hidden()->name('title')->value($this->model->title),
+                _Hidden()->name('trigger')->value($this->model->trigger),
+            );
+        }
+
+        if ($this->model->id) {
+            // Editing an existing group: the trigger is already fixed, so keep it hidden.
+            return _Rows(
+                _Input('Name')->name('title')->value($this->model->title),
+                _Hidden()->name('trigger')->value($this->model->trigger),
+            );
+        }
+
+        return _Rows(
+            _Input('Name')->name('title'),
+
+            _Select('trigger')->name('trigger')
+                ->config(['floatingOptions' => true])
+                ->options(collect(CommunicationTemplateGroup::getTriggers())->mapWithKeys(fn($trigger) => [$trigger => $trigger::getName()]))
+                ->selfPost('saveAndGetNewFormTypes')
+                ->inPanel('communication-type-form')
+                ->panelLoading('communication-type-form'),
         );
     }
 
@@ -98,7 +122,7 @@ class CommunicationTemplateForm extends Modal
             return 'communications.send';
         }
 
-        return !$this->model->id ? 'communication.next' : 'generic.save';
+        return !$this->showsChannels() ? 'communication.next' : 'generic.save';
     }
 
     public function saveAndGetNewForm()
@@ -110,7 +134,7 @@ class CommunicationTemplateForm extends Modal
         if ($previousCommunicationType) {
             $this->savePreviousCommunication($previousCommunicationType);
         } else if (!$communicationType) { // If there is no previous communication type, we are probably coming from the trigger select, so we set a default
-            $communicationType = CommunicationType::EMAIL->value;
+            $communicationType = $this->defaultChannel($trigger ?? $this->model->trigger)->value;
         }
 
         if (!$communicationType) {
@@ -137,15 +161,13 @@ class CommunicationTemplateForm extends Modal
 
         return _Rows(
             _ButtonGroup()->options(
-                    collect(CommunicationType::cases())
-                        ->reject(fn($t) => !$t->enabled())
-                        ->filter(fn($t) => !method_exists($trigger, 'acceptsChannel') || $trigger::acceptsChannel($t))
+                    $this->channelsFor($trigger)
                         ->mapWithKeys(fn($t) => [$t->value => $t->label()])
                         ->all()
                 )
                     ->optionClass('p-2 text-center')
                     ->name('communication_type', false)
-                    ->default(CommunicationType::EMAIL->value)
+                    ->default($this->defaultChannel($trigger)->value)
                     ->selfPost('saveAndGetNewForm')
                     ->withAllFormValues()
                     ->inPanel('communication-type-form'),
@@ -154,6 +176,22 @@ class CommunicationTemplateForm extends Modal
                     $handler
                 )->id(id: 'communication-type-form')->class('mb-6'),
         );
+    }
+
+    protected function channelsFor($trigger)
+    {
+        return collect(CommunicationType::cases())
+            ->reject(fn($t) => !$t->enabled())
+            ->filter(fn($t) => !$trigger || !method_exists($trigger, 'acceptsChannel') || $trigger::acceptsChannel($t))
+            ->values();
+    }
+
+    /** EMAIL unless the trigger refuses it — a database-only trigger must not open on a form it cannot use. */
+    protected function defaultChannel($trigger): CommunicationType
+    {
+        $channels = $this->channelsFor($trigger);
+
+        return $channels->first(fn($t) => $t === CommunicationType::EMAIL) ?? $channels->first() ?? CommunicationType::EMAIL;
     }
 
     protected function savePreviousCommunication($communicationType)

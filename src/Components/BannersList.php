@@ -27,7 +27,8 @@ class BannersList extends PackageList
 
     public function query()
     {
-        return parent::query()->where('is_banner_type', true);
+        // is_modal wins over is_banner_type: a row flagged both belongs to ModalNotificationsList.
+        return parent::query()->where('is_banner_type', true)->where('is_modal', false);
     }
 
     public function noItemsFound()

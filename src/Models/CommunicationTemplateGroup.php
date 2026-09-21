@@ -53,9 +53,9 @@ class CommunicationTemplateGroup extends Model
      * another's groups. $teamId is never null here, so the system baseline (team_id NULL) and the
      * one-off direct_usage temps both stay out of reach.
      */
-    public function scopeManualForTeam($query, $teamId)
+    public function scopeManualForTeam($query, $teamId, $trigger = ManualTrigger::class)
     {
-        return $query->forTrigger(ManualTrigger::class)
+        return $query->forTrigger($trigger)
             ->where('team_id', $teamId)
             ->where(fn ($q) => $q->whereNull('direct_usage')->orWhere('direct_usage', false));
     }

@@ -8,7 +8,6 @@ use Condoedge\Communications\Services\Stats\Dto\TeamStatsDto;
 use Condoedge\Communications\Services\Stats\Dto\TriggerStatsDto;
 use Condoedge\Communications\Services\TemplateResolution\EffectiveTemplateResolverContract;
 use Condoedge\Communications\Services\TemplateResolution\EffectiveTemplateSource;
-use Condoedge\Communications\Triggers\ManualTrigger;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -174,7 +173,7 @@ class CommunicationStatsService implements CommunicationStatsServiceContract
     protected function triggerCounts(array $teamIds): array
     {
         $triggers = collect(config('kompo-communications.triggers', []))
-            ->reject(fn ($trigger) => $trigger === ManualTrigger::class)
+            ->reject(fn ($trigger) => method_exists($trigger, 'getSpecificCommunicationsIds'))
             ->unique()
             ->values();
 

@@ -106,6 +106,8 @@ class NotificationTemplate extends Model
                         'custom_button_handler' => $this->custom_button_handler,
 
                         'is_banner_type' => $recipientParams['is_banner_type'] ?? false,
+                        'is_modal' => $recipientParams['is_modal'] ?? false,
+                        'is_system_message' => $recipientParams['is_system_message'] ?? false,
                     ];
 
                     $delivered[$position] = true;
@@ -114,8 +116,10 @@ class NotificationTemplate extends Model
             });
         }
 
-        if ($notifications) {
-            Notification::insert($notifications);
+        // Chunked: MySQL caps a prepared statement at 65,535 placeholders, which a broadcast to a
+        // few thousand recipients (x 16 columns) overruns in a single insert.
+        foreach (array_chunk($notifications, 1000) as $chunk) {
+            Notification::insert($chunk);
         }
 
         return array_keys($delivered);

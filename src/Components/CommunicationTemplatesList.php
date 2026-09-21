@@ -10,7 +10,6 @@ use Condoedge\Communications\Services\Grouping\TriggerGroupResolverContract;
 use Condoedge\Communications\Services\TemplateResolution\EffectiveTemplateResolution;
 use Condoedge\Communications\Services\TemplateResolution\EffectiveTemplateResolverContract;
 use Condoedge\Communications\Services\TemplateResolution\EffectiveTemplateSource;
-use Condoedge\Communications\Triggers\ManualTrigger;
 use Condoedge\Utils\Kompo\Common\WhiteTable;
 use Kompo\Auth\Facades\TeamModel;
 
@@ -74,10 +73,10 @@ class CommunicationTemplatesList extends WhiteTable
         $search = mb_strtolower(trim((string) request('search')));
         $group = request('group');
 
-        // Rows are configured triggers, not DB rows. ManualTrigger is an ad-hoc broadcast, not a
-        // template-able trigger, so it never appears on the inheritance matrix.
+        // Rows are configured triggers, not DB rows. A hand-fired trigger (one that names its own
+        // groups, like ManualTrigger) is not template-able, so it never appears on the matrix.
         return collect(config('kompo-communications.triggers', []))
-            ->reject(fn ($trigger) => $trigger === ManualTrigger::class)
+            ->reject(fn ($trigger) => method_exists($trigger, 'getSpecificCommunicationsIds'))
             ->filter(fn ($trigger) => $search === '' || str_contains(mb_strtolower($trigger::getName()), $search))
             ->filter(fn ($trigger) => blank($group) || optional($this->groups->groupFor($trigger))->value() === $group)
             ->when(request('not_owned', false), fn ($c) => $c->reject(fn ($trigger) => $this->ownGroupFor($trigger) !== null))
