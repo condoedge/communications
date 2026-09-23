@@ -26,6 +26,9 @@ return [
         // layout so it renders inside the same shell as the rest of the signed-link pages.
         'component' => \Condoedge\Communications\Components\UnsubscribePage::class,
         'layout' => null,
+
+        // CommunicationCategory values an unsubscribe silences. TRANSACTIONAL is never silenced.
+        'categories' => ['notification', 'marketing'],
     ],
 
     'manual-trigger' => [

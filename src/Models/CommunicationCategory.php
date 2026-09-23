@@ -29,9 +29,12 @@ enum CommunicationCategory: string
         };
     }
 
+    /** The host picks which categories an unsubscribe reaches; TRANSACTIONAL never is, whatever the config says. */
     public function isSuppressible(): bool
     {
-        return $this !== self::TRANSACTIONAL;
+        $categories = config('kompo-communications.unsubscribe.categories', [self::NOTIFICATION->value, self::MARKETING->value]);
+
+        return $this !== self::TRANSACTIONAL && in_array($this->value, $categories, true);
     }
 
     /**
