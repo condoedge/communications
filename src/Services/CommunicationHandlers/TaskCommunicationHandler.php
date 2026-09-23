@@ -4,6 +4,7 @@ namespace Condoedge\Communications\Services\CommunicationHandlers;
 
 use Condoedge\Communications\EventsHandling\Contracts\TaskCommunicableEvent;
 use Condoedge\Communications\Facades\ContextEnhancer;
+use Condoedge\Communications\Models\CommunicationSendingRecipientStatus;
 use Condoedge\Communications\Services\CommunicationHandlers\AbstractCommunicationHandler;
 use Condoedge\Communications\Services\CommunicationHandlers\Contracts\TaskCommunicable;
 use Kompo\Tasks\Models\Enums\TaskStatusEnum;
@@ -39,8 +40,9 @@ class TaskCommunicationHandler extends AbstractCommunicationHandler
         $event = $params['trigger_instance'] ?? null;
 
         if ($event && $assignables = $event->sendToAnotherAssignables()) {
-            // NOTE: sendToAnotherAssignables is not a per-recipient flow (one task is created
-            // and assigned to many). Locale handling for this branch is a follow-up.
+            // NOTE: sendToAnotherAssignables is not a per-recipient flow — one task is created and
+            // assigned to a different set entirely, so none of $communicables is notified here.
+            // Locale handling for this branch is a follow-up.
             $params = ContextEnhancer::setContext($params)->getEnhancedContext();
             $task = $this->createTaskWithDetail($params);
 
@@ -48,17 +50,20 @@ class TaskCommunicationHandler extends AbstractCommunicationHandler
 
             $this->linkTaskToRelatedTaskable($task, $event);
 
+            $this->reportAll($communicables, CommunicationSendingRecipientStatus::SKIPPED, 'reassigned-to-other-assignables');
+
             // Break the flow here, we already created the task and assigned it to the assignables
             return;
         }
 
-        collect($communicables)->map(function($communicable) use ($params, $event) {
-            self::withRecipientLocale($communicable, function () use ($communicable, $params, $event) {
-                $params = ContextEnhancer::setCommunicable($communicable)->setContext($params)->getEnhancedContext();
-                $task = $this->createTaskWithDetail($params, $communicable->getId());
+        $this->sendEach($communicables, function ($communicable) use ($params, $event) {
+            // setContext() replaces the whole context, so it has to come first.
+            $params = ContextEnhancer::setContext($params)->setCommunicable($communicable)->getEnhancedContext();
+            $task = $this->createTaskWithDetail($params, $communicable->getId());
 
-                $this->linkTaskToRelatedTaskable($task, $event);
-            });
+            $this->linkTaskToRelatedTaskable($task, $event);
+
+            return null;
         });
     }
 
@@ -97,7 +102,7 @@ class TaskCommunicationHandler extends AbstractCommunicationHandler
         $taskDetail = new TaskDetail();
         $taskDetail->task_id = $task->id;
         $taskDetail->setUserId(systemUserId()); // System id
-        $taskDetail->details = $content;
+        $taskDetail->details = $content ?: '';
         $taskDetail->systemSave();
 
         return $task;

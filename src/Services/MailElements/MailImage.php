@@ -16,7 +16,11 @@ class MailImage extends MailElement
 
     public function htmlStructure()
     {
-        return '<img src="'.$this->src.'" alt="'.$this->alt.'" style="'. $this->style.'" class="image" />';
+        // Email-safe image defaults: block display (kills the gap under images),
+        // no border/underline when linked, and max-width to prevent overflow.
+        $baseStyle = 'display: block; border: 0; outline: none; text-decoration: none; max-width: 100%; height: auto; -ms-interpolation-mode: bicubic;';
+
+        return '<img src="'.$this->src.'" alt="'.$this->alt.'" style="'. $baseStyle . ' ' . $this->style.'" class="image" />';
     }
 
     public function src($src)

@@ -18,7 +18,8 @@ use Illuminate\Support\Collection;
 interface TemplateSeedingServiceContract
 {
     /**
-     * Triggers in `config('kompo-communications.triggers')` that have no CommunicationTemplateGroup yet.
+     * Triggers in `config('kompo-communications.triggers')` that have no system-baseline group
+     * (team_id NULL) yet — regardless of any team-owned overrides they may already carry.
      *
      * @return Collection<int, class-string>
      */
@@ -32,8 +33,9 @@ interface TemplateSeedingServiceContract
     public function seedAll(): Collection;
 
     /**
-     * Create the group + per-channel templates for one trigger. Idempotent — returns null
-     * (and does nothing) if a group already exists for the trigger.
+     * Create the baseline group + per-channel templates for one trigger. Idempotent and
+     * disable-safe — returns null (and does nothing) if a baseline already exists for the trigger,
+     * including a disabled one.
      *
      * @param class-string $trigger
      */

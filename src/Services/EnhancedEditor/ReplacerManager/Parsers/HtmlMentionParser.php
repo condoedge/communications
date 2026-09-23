@@ -7,9 +7,21 @@ use Condoedge\Communications\Facades\Variables;
 
 class HtmlMentionParser implements MentionParserInterface
 {
+    /** Translucent tint applied to a mention in the admin preview (no padding — just a soft field). */
+    public const PREVIEW_TINT = 'background:rgba(0, 173, 29, 0.1);border-radius:3px;';
+
     public function getMentionFormat(string $varName): string
     {
         return '<span class="mention" data-mention="' . $varName . '">';
+    }
+
+    public function highlightMentions(string $html): string
+    {
+        return preg_replace_callback(
+            $this->getAnyMentionPattern(),
+            fn ($m) => '<span class="mention" data-mention="' . $m['id'] . '" style="' . self::PREVIEW_TINT . '">' . $m['label'] . '</span>',
+            $html
+        ) ?? $html;
     }
 
     public function matchesMention(string $subject, string $varName): bool
@@ -65,6 +77,12 @@ class HtmlMentionParser implements MentionParserInterface
     protected function getHtmlMentionPattern(string $varName): string
     {
         return '/<span\b[^>]*data-mention=("|\")' . preg_quote($varName, '/') . '\1[^>]*>.*?<\/span>/si';
+    }
+
+    /** Matches any mention span, capturing its id + label — the shape this parser emits. */
+    protected function getAnyMentionPattern(): string
+    {
+        return '/<span\b[^>]*\bdata-mention=("|\')(?<id>[^"\']+)\1[^>]*>(?<label>.*?)<\/span>/si';
     }
 
     protected function getBacktickMentionPattern(string $label): string

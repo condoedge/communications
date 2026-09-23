@@ -2,6 +2,7 @@
 
 namespace Condoedge\Communications\Services\EnhancedEditor\ReplacerManager;
 
+use Condoedge\Communications\Recipients\RecipientKey;
 use Condoedge\Communications\Services\CommunicationHandlers\Contracts\Communicable;
 
 class ContextEnhancer
@@ -67,7 +68,9 @@ class ContextEnhancer
     public function setCommunicable(Communicable $communicable)
     {
         $this->context = array_merge($this->context, [
-            'communicable' => $communicable
+            // Unwrapped so host enhancers keyed on the concrete model still match; every other
+            // consumer of a recipient resolves the underlying model the same way.
+            'communicable' => RecipientKey::unwrap($communicable),
         ]);
 
         return $this;
@@ -96,11 +99,23 @@ class ContextEnhancer
      * for a context key, it will be executed and its result will be merged into the enhanced context. Additionally, if a
      * context value has a method `enhanceContext`, it will be called to further enhance the context.
      *
+     * @param array<string, mixed> $extra Extra context for this call only. It is never stored, so it cannot bleed
+     *                                    into the next call.
      * @return array<string, mixed> The enhanced context.
      */
-    public function getEnhancedContext()
+    public function getEnhancedContext(array $extra = [])
     {
-        collect($this->context)->each(function ($value, $key) {
+        // This service is a singleton shared by every recipient of a sending (and by every job on a
+        // long-lived worker), so both the input and the accumulator have to be scoped to this call.
+        $context = array_merge($this->context, $extra);
+
+        $this->enhancedContext = [];
+
+        // The accumulator stays SECOND in both merges: several enhancers legitimately derive the same
+        // key (a host commonly resolves 'team' from an event, an invoice and the communicable), and
+        // the first one to produce it wins. Reversing this hands the key to whichever enhancer runs
+        // last, which is the least specific one.
+        collect($context)->each(function ($value, $key) {
             if (array_key_exists($key, $this->enhancers)) {
                 $enhancer = $this->enhancers[$key];
 
@@ -112,7 +127,7 @@ class ContextEnhancer
             }
         });
 
-        $this->enhancedContext = array_merge($this->enhancedContext, $this->context);
+        $this->enhancedContext = array_merge($this->enhancedContext, $context);
 
         return $this->enhancedContext;
     }
