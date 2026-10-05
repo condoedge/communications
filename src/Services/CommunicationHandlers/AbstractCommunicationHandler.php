@@ -249,7 +249,20 @@ abstract class AbstractCommunicationHandler
     // LOCALE
 
     /**
-     * Run $callback with the locale temporarily switched to the recipient's preferredLocale().
+     * The recipient's own language, else the app's initial one. Sends run on a queue worker,
+     * where the ambient locale is config('app.locale') rather than what a visitor is served.
+     */
+    public static function recipientLocale($communicable): ?string
+    {
+        $locale = $communicable instanceof \Illuminate\Contracts\Translation\HasLocalePreference
+            ? $communicable->preferredLocale()
+            : null;
+
+        return $locale ?: (config('kompo.force_initial_locale') ?: null);
+    }
+
+    /**
+     * Run $callback with the locale temporarily switched to the recipient's recipientLocale().
      * Restores the previous locale even if $callback throws.
      *
      * Public static so it can be invoked from outside the handler hierarchy
@@ -261,10 +274,7 @@ abstract class AbstractCommunicationHandler
      */
     public static function withRecipientLocale($communicable, callable $callback)
     {
-        if (!$communicable instanceof \Illuminate\Contracts\Translation\HasLocalePreference) {
-            return $callback();
-        }
-        $locale = $communicable->preferredLocale();
+        $locale = self::recipientLocale($communicable);
         if (!$locale) {
             return $callback();
         }

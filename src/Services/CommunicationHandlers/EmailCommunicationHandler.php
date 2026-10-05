@@ -117,8 +117,7 @@ class EmailCommunicationHandler extends AbstractCommunicationHandler
 
             $mail = Mail::to($recipientEmail);
 
-            if ($communicable instanceof \Illuminate\Contracts\Translation\HasLocalePreference
-                && $locale = $communicable->preferredLocale()) {
+            if ($locale = self::recipientLocale($communicable)) {
                 $mail = $mail->locale($locale);
             }
 
