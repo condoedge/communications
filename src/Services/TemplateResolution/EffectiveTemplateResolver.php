@@ -77,8 +77,14 @@ class EffectiveTemplateResolver implements EffectiveTemplateResolverContract
      */
     protected function fromSystemBaseline(string $trigger, int $teamId): EffectiveTemplateResolution
     {
+        // orderBy('id') is load-bearing, not tidiness: duplicate baselines exist since the
+        // uniqueness relax, and an unordered first() lets MySQL hand back a different row as
+        // rows are soft-deleted or updated. The team-scoped path above already settles on the
+        // lowest id; this keeps the baseline path agreeing with it, so the group the admin
+        // screen edits is the group the send path uses.
         $baseline = CommunicationTemplateGroup::forTrigger($trigger)
             ->whereNull('team_id')
+            ->orderBy('id')
             ->first();
 
         if (!$baseline) {
