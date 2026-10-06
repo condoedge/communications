@@ -106,7 +106,7 @@ class CommunicationManualList extends WhiteTable
         $links = array_filter([
             _DropdownLink('communications.action-edit')->selfGet('editManual', ['id' => $group->id])->inModal(),
             _DropdownLink('communications.action-send')->selfGet('sendManual', ['id' => $group->id])->inModal(),
-            $this->hasSendings($group) ? null : _DropdownLink('communications.action-delete')
+            !$this->deletable($group) ? null : _DropdownLink('communications.action-delete')
                 ->selfPost('deleteManual', ['id' => $group->id])->refresh(),
         ]);
 
@@ -120,6 +120,12 @@ class CommunicationManualList extends WhiteTable
         return CommunicationSending::query()
             ->whereIn('communication_template_id', $group->communicationTemplates->pluck('id'))
             ->exists();
+    }
+
+    /** Once sent, a communication is kept for its log; a subclass that can undo a send may allow it. */
+    protected function deletable(CommunicationTemplateGroup $group): bool
+    {
+        return !$this->hasSendings($group);
     }
 
     /**
@@ -155,7 +161,7 @@ class CommunicationManualList extends WhiteTable
     {
         $group = $this->authorizedGroup($id);
 
-        if (!$this->hasSendings($group)) {
+        if ($this->deletable($group)) {
             $group->delete();
         }
     }
