@@ -4,6 +4,7 @@ namespace Condoedge\Communications\Triggers;
 
 use Condoedge\Communications\EventsHandling\Contracts\CommunicableEvent;
 use Condoedge\Communications\EventsHandling\Contracts\DatabaseCommunicableEvent;
+use Condoedge\Communications\Models\CommunicationCategory;
 
 class ManualTrigger implements CommunicableEvent, DatabaseCommunicableEvent
 {
@@ -28,13 +29,23 @@ class ManualTrigger implements CommunicableEvent, DatabaseCommunicableEvent
         return __('communications.manual-trigger');
     }
 
+    /**
+     * An admin-composed send to a chosen audience — the shape unsubscribe exists for, and the one
+     * most likely to be a blast. The cost is real and deliberate: an admin cannot reach an
+     * unsubscribed member this way, and must use a direct channel instead.
+     */
+    public static function communicationCategory(): CommunicationCategory
+    {
+        return CommunicationCategory::MARKETING;
+    }
+
     public static function validVariablesIds($specificField = null, $context = []): ?array
     {
         if (isset($context['communicable_type'])) {
             return config('kompo-communications.manual-trigger.valid-variables.' . $context['communicable_type'], null);
         }
 
-        return config('kompo-communications.manual-trigger.valid-variables.generic', []);
+        return config('kompo-communications.manual-trigger.valid-variables.generic', null);
     }
 
     function getCommunicables(): array
@@ -51,10 +62,11 @@ class ManualTrigger implements CommunicableEvent, DatabaseCommunicableEvent
         return [];
     }
 
-    static function manuallyForm($communicationGroupId = null)
+    static function manuallyForm($communicationGroupId = null, $teamId = null)
     {
         return new GenericManualTriggerForm([
-            'communication_id' => $communicationGroupId
+            'communication_id' => $communicationGroupId,
+            'team_id' => $teamId,
         ]);
     }
 
