@@ -1,4 +1,5 @@
 {
+	"communication.invalid-communication-type": "Le type de communication sélectionné n'est pas valide pour ce déclencheur.",
 	"communication.next": "Prochain",
 	"communications.a-random-triggerer": "Un déclencheur aléatoire",
 	"communications.action-configure": "Configurer",

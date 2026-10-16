@@ -194,7 +194,7 @@ abstract class AbstractCommunicationHandler
     final public function getForm($trigger = null, $context = [])
     {
         if ($trigger && !$this->typeIsValidToTrigger($trigger)) {
-            return _Html('The selected communication type is not valid for this trigger.')->class('text-center text-red-500');
+            return _Html('communication.invalid-communication-type')->class('text-center text-red-500');
         }
 
         return _Rows(

@@ -1,4 +1,5 @@
 {
+	"communication.invalid-communication-type": "The selected communication type is not valid for this trigger.",
 	"communication.next": "Next",
 	"communications.a-random-triggerer": "A random triggerer",
 	"communications.action-configure": "Configure",
