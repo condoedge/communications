@@ -281,7 +281,7 @@ class MessageContentReplacer
 
         $replaceWith = $replaceValue;
 
-        if (is_callable($replaceWith)) {
+        if ($replaceWith instanceof \Closure) {
             $args = $this->getHandlerArguments($replaceWith, null);
 
             $replaceWith = $replaceWith(...$args);
