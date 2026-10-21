@@ -34,6 +34,12 @@ class BraceMentionParser implements MentionParserInterface
         return '{{' . $varId . '}}';
     }
 
+    /** The editor emits mentions as HTML spans, so brace syntax needs no preview tint. */
+    public function highlightMentions(string $html): string
+    {
+        return $html;
+    }
+
     public function getName(): string
     {
         return 'brace';

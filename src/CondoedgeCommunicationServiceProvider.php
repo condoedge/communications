@@ -3,6 +3,7 @@
 namespace Condoedge\Communications;
 
 use Condoedge\Communications\Console\SeedTemplatesCommand;
+use Condoedge\Communications\EventsHandling\BlockSuppressedRecipients;
 use Condoedge\Communications\EventsHandling\CommunicationTriggeredListener;
 use Condoedge\Communications\EventsHandling\Contracts\CommunicableEvent;
 use Condoedge\Communications\Facades\ContentReplacer;
@@ -12,6 +13,7 @@ use Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\MessageCont
 use Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\Parsers\BraceMentionParser;
 use Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\Parsers\HtmlMentionParser;
 use Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\VariablesManager\VariablesManager;
+use Condoedge\Communications\Services\Suppression\UnsubscribeLinkGenerator;
 use Condoedge\Communications\Services\MailElements\MailElement;
 use Condoedge\Communications\Services\TemplateSeeding\TemplateSeedingService;
 use Condoedge\Communications\Services\TemplateSeeding\TemplateSeedingServiceContract;
@@ -52,6 +54,8 @@ class CondoedgeCommunicationServiceProvider extends ServiceProvider
 
         $this->loadConfig();
 
+        $this->excludeConsentUrlsFromAnalytics();
+
         $this->loadListeners();
 
         $this->loadCrons();
@@ -71,8 +75,10 @@ class CondoedgeCommunicationServiceProvider extends ServiceProvider
     public function register()
     {
         //Best way to load routes. This ensures loading at the very end (after fortifies' routes for ex.)
+        // No blanket 'web' group: the file declares middleware per route, because the RFC 8058
+        // one-click endpoint must run without CSRF (the mail provider posts it with no session).
         $this->booted(function () {
-            \Route::middleware('web')->group(__DIR__.'/../routes/web.php');
+            \Route::group([], __DIR__.'/../routes/web.php');
         });
 
         $this->app->singleton('communication-variables-manager', function () {
@@ -88,6 +94,51 @@ class CondoedgeCommunicationServiceProvider extends ServiceProvider
         });
 
         $this->app->bind(TemplateSeedingServiceContract::class, TemplateSeedingService::class);
+
+        // Deliberately bind(), not singleton(): the service memoizes lookups for the life of one
+        // send. As a singleton that memo would outlive a resubscribe on a long-running queue
+        // worker, which never reaches request termination to flush it.
+        $this->app->bind(
+            \Condoedge\Communications\Services\Suppression\EmailSuppressionServiceContract::class,
+            \Condoedge\Communications\Services\Suppression\EmailSuppressionService::class
+        );
+
+        // Team-inheritance template resolution: pure resolver wrapped in a per-request cache
+        // decorator (mirrors the Cached* / AuthCacheLayer pattern). The cache flushes at request
+        // termination via the auth provider's lifecycle cleanup.
+        $this->app->singleton(\Condoedge\Communications\Services\TemplateResolution\EffectiveTemplateResolver::class);
+
+        $this->app->singleton(
+            \Condoedge\Communications\Services\TemplateResolution\EffectiveTemplateResolverContract::class,
+            fn ($app) => new \Condoedge\Communications\Services\TemplateResolution\CachedEffectiveTemplateResolver(
+                $app->make(\Condoedge\Communications\Services\TemplateResolution\EffectiveTemplateResolver::class),
+                $app->make(\Kompo\Auth\Teams\Cache\AuthCacheLayer::class),
+            )
+        );
+
+        $this->app->bind(
+            \Condoedge\Communications\Services\Stats\CommunicationStatsServiceContract::class,
+            \Condoedge\Communications\Services\Stats\CommunicationStatsService::class
+        );
+
+        // No trigger grouping by default — the admin Templates tab hides the group column + filter.
+        // A host app binds its own adapter over its domain grouping.
+        $this->app->bind(
+            \Condoedge\Communications\Services\Grouping\TriggerGroupResolverContract::class,
+            \Condoedge\Communications\Services\Grouping\NullTriggerGroupResolver::class
+        );
+
+        // The send path deliberately uses the UNCACHED resolver. The decorator memoizes for the
+        // lifetime of a request and is flushed at request termination, which a queue worker never
+        // reaches between jobs — a worker that once resolved NONE/DISABLED would keep suppressing
+        // sends until redeploy, long after an admin fixed the template. One resolve per dispatch
+        // costs nothing next to actually sending.
+        $this->app->bind(
+            \Condoedge\Communications\Services\Dispatch\CommunicationDispatchServiceContract::class,
+            fn ($app) => new \Condoedge\Communications\Services\Dispatch\CommunicationDispatchService(
+                $app->make(\Condoedge\Communications\Services\TemplateResolution\EffectiveTemplateResolver::class),
+            )
+        );
 
         ContentReplacer::setPostProcessors([
             function ($result) {
@@ -130,13 +181,33 @@ class CondoedgeCommunicationServiceProvider extends ServiceProvider
     }
 
     /**
+     * An unsubscribe URL never expires, so a page-view log row holding one is a standing credential
+     * for changing that person's consent. Keep these routes out of the analytics log.
+     */
+    protected function excludeConsentUrlsFromAnalytics()
+    {
+        config([
+            'analytics.excluded_routes' => array_merge(
+                config('analytics.excluded_routes', []),
+                [
+                    UnsubscribeLinkGenerator::ROUTE_UNSUBSCRIBE,
+                    UnsubscribeLinkGenerator::ROUTE_UNSUBSCRIBE_POST,
+                ],
+            ),
+        ]);
+    }
+
+    /**
      * Loads the listeners.
      */
     protected function loadListeners()
     {
         $this->verifyCommunicationTriggers();
-        
+
         Event::listen(CommunicationTemplateGroup::getTriggers(), CommunicationTriggeredListener::class);
+
+        // Consent backstop at the mailer. Only acts on messages explicitly marked suppressible.
+        Event::listen(\Illuminate\Mail\Events\MessageSending::class, BlockSuppressedRecipients::class);
     }
 
     protected function verifyCommunicationTriggers()

@@ -2,14 +2,23 @@
 
 namespace Condoedge\Communications\Services\CommunicationHandlers\Layout;
 
-use Illuminate\Mail\Mailable;
 use Illuminate\Notifications\Messages\VonageMessage;
+use Illuminate\Notifications\Notification;
 
 /**
  * The wrapper for SMS sending of the communication
  */
-class DefaultLayoutSmsCommunicable extends Mailable
+class DefaultLayoutSmsCommunicable extends Notification
 {
+    use ConvertsHtmlToPlainText;
+
+    /**
+     * Beyond ~1600 chars (10 GSM-7 segments) carriers stop concatenating and truncate mid-word,
+     * and every segment is billed — worse with non-GSM characters, which halve a segment to 70.
+     * Extend this layout and override the constant to change it.
+     */
+    protected const MAX_CONTENT_LENGTH = 1600;
+
     public $communication;
     public $params;
 
@@ -34,9 +43,11 @@ class DefaultLayoutSmsCommunicable extends Mailable
      */
     public function toVonage(object $notifiable): VonageMessage
     {
-        $plainText = strip_tags($this->communication->getParsedContent($this->params));
+        $plainText = $this->toPlainText($this->communication->getParsedContent($this->params));
 
+        // Plain '...' rather than an ellipsis character, which alone would force the whole
+        // message into UCS-2.
         return (new VonageMessage)
-            ->content($plainText);
+            ->content(mb_strimwidth($plainText, 0, static::MAX_CONTENT_LENGTH, '...'));
     }
 }
