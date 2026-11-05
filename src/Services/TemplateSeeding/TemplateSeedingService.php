@@ -23,6 +23,16 @@ class TemplateSeedingService implements TemplateSeedingServiceContract
             ->values();
     }
 
+    public function seedChannelIntoExistingGroups(\Condoedge\Communications\Models\CommunicationType $type): Collection
+    {
+        return CommunicationTemplateGroup::whereIn('trigger', CommunicationTemplateGroup::getTriggers())
+            ->where(fn ($q) => $q->whereNull('direct_usage')->orWhere('direct_usage', false))
+            ->whereDoesntHave('communicationTemplates', fn ($q) => $q->withTrashed()->where('type', $type->value))
+            ->get()
+            ->filter(fn (CommunicationTemplateGroup $group) => DB::transaction(fn () => $group->seedChannelFromStub($type)))
+            ->values();
+    }
+
     public function seedForTrigger(string $trigger): ?CommunicationTemplateGroup
     {
         // Seeding targets the system baseline (team_id NULL) specifically, independent of whether a
