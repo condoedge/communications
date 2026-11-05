@@ -6,6 +6,7 @@ use Condoedge\Communications\Services\CommunicationHandlers\Contracts\ChannelAwa
 use Condoedge\Communications\Services\CommunicationHandlers\Contracts\Communicable;
 use Condoedge\Communications\Services\CommunicationHandlers\Contracts\DatabaseCommunicable;
 use Condoedge\Communications\Services\CommunicationHandlers\Contracts\EmailCommunicable;
+use Condoedge\Communications\Services\CommunicationHandlers\Contracts\PushCommunicable;
 use Condoedge\Communications\Services\CommunicationHandlers\Contracts\SmsCommunicable;
 use Condoedge\Communications\Services\CommunicationHandlers\Contracts\TaskCommunicable;
 use Illuminate\Contracts\Translation\HasLocalePreference;
@@ -25,6 +26,7 @@ class RecipientOverride implements
     SmsCommunicable,
     DatabaseCommunicable,
     TaskCommunicable,
+    PushCommunicable,
     ChannelAware,
     HasLocalePreference
 {
@@ -103,6 +105,12 @@ class RecipientOverride implements
     public function getPhone()
     {
         return $this->overrides['phone'] ?? $this->inner->getPhone();
+    }
+
+    /** Push devices of the wrapped recipient; acceptsChannel() already drops one that has no push. */
+    public function getPushTokens(): array
+    {
+        return $this->inner instanceof PushCommunicable ? $this->inner->getPushTokens() : [];
     }
 
     public function getUserId()

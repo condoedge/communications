@@ -12,8 +12,9 @@ use Condoedge\Communications\Services\CommunicationHandlers\Layout\ConvertsHtmlT
  * its content, flattened to plain text, the body. Delivery goes through the
  * host app's PushSender binding.
  *
- * Optional params: `push_route` (deep link opened when the notification is tapped)
- * and `push_channel` (Android notification channel, "default" otherwise).
+ * Where a tap leads: the `push_route` param, else the trigger's own pushRoute($params)
+ * when it declares one, else nothing (the app decides). `push_channel` picks the Android
+ * notification channel, "default" otherwise.
  */
 class PushCommunicationHandler extends AbstractCommunicationHandler
 {
@@ -51,7 +52,7 @@ class PushCommunicationHandler extends AbstractCommunicationHandler
             $body = $this->shorten($this->communication->getParsedContent($perRecipientParams), static::MAX_BODY_LENGTH);
 
             $data = array_filter([
-                'route' => $params['push_route'] ?? null,
+                'route' => $this->routeFor($params),
                 'communication_id' => $this->communication->id,
             ]);
 
@@ -65,6 +66,17 @@ class PushCommunicationHandler extends AbstractCommunicationHandler
 
             return null;
         });
+    }
+
+    protected function routeFor(array $params): ?string
+    {
+        if (!empty($params['push_route'])) {
+            return $params['push_route'];
+        }
+
+        $trigger = $params['trigger_instance'] ?? null;
+
+        return $trigger && method_exists($trigger, 'pushRoute') ? $trigger->pushRoute($params) : null;
     }
 
     protected function shorten(?string $html, int $max): string
