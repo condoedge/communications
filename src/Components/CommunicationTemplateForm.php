@@ -181,7 +181,7 @@ class CommunicationTemplateForm extends Modal
     protected function channelsFor($trigger)
     {
         return collect(CommunicationType::cases())
-            ->reject(fn($t) => !$t->enabled())
+            ->reject(fn($t) => !$t->availableInEditor())
             ->filter(fn($t) => !$trigger || !method_exists($trigger, 'acceptsChannel') || $trigger::acceptsChannel($t))
             ->values();
     }
