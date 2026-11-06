@@ -169,45 +169,63 @@ class CommunicationTemplateGroup extends Model
         $communicationTemplate->title = $trigger::getName();
         $communicationTemplate->save();
 
-        collect(CommunicationType::cases())->each(function ($type) use ($communicationTemplate, $trigger) {
-            $className = substr(strrchr($trigger, '\\'), 1);
-            $sluggedName = \Str::slug(\Str::snake($className));
-            $viewName = "stubs/communication-templates/default-{$sluggedName}-{$type->value}";
-
-            $content = collect(array_keys(config('kompo.locales')))->mapWithKeys(function($locale) use ($viewName) {
-                if (!file_exists(resource_path('views/' . $viewName . '-' . $locale . ".blade.php"))) return [$locale => ''];
-
-                return [$locale => executeCallbackInLocale(
-                    $locale,
-                    fn() => view($viewName .'-'. $locale)->render(),
-                )];
-            })->filter();
-
-            if (!$content->count()) {
-                return null;
-            }
-
-            $attributes = [
-                'subject' => collect(array_keys(config('kompo.locales')))
-                    ->mapWithKeys(fn($locale) => [$locale => executeCallbackInLocale(
-                        $locale,
-                        fn() => (method_exists($trigger, 'getSubject') ? $trigger::getSubject() : null) ?: $trigger::getName(),
-                    )]),
-                'content' => $content->toArray(),
-            ];
-
-            // A database notification's CTA lives on its button, not the body. When the trigger
-            // declares a default button handler, seed it on the DATABASE template.
-            if ($type === CommunicationType::DATABASE
-                && method_exists($trigger, 'defaultNotificationButtonHandler')
-                && ($handler = $trigger::defaultNotificationButtonHandler())) {
-                $attributes['custom_button_handler'] = $handler;
-            }
-
-            $type->handler(null)->save($communicationTemplate->id, $attributes);
-        });
+        collect(CommunicationType::cases())->each(fn ($type) => $communicationTemplate->seedChannelFromStub($type));
 
         return $communicationTemplate;
+    }
+
+    /**
+     * Create this group's template for one channel from its blade stub:
+     * stubs/communication-templates/default-{trigger-slug}-{channel}-{locale}.blade.php.
+     *
+     * The subject is the first of: a `default-{trigger-slug}-{channel}-subject-{locale}` stub (a push
+     * notification's title, for instance), the trigger's getSubject() when it declares one, then the
+     * trigger's name. Every stub renders in the locale it is written for.
+     *
+     * @return bool false when no stub exists for this channel
+     */
+    public function seedChannelFromStub(CommunicationType $type): bool
+    {
+        $trigger = $this->trigger;
+        $className = substr(strrchr($trigger, '\\'), 1);
+        $sluggedName = \Str::slug(\Str::snake($className));
+        $viewName = "stubs/communication-templates/default-{$sluggedName}-{$type->value}";
+        $locales = array_keys(config('kompo.locales'));
+
+        $render = function ($view, $locale) {
+            return file_exists(resource_path('views/' . $view . '-' . $locale . '.blade.php'))
+                ? trim(executeCallbackInLocale($locale, fn () => view($view . '-' . $locale)->render()))
+                : '';
+        };
+
+        $content = collect($locales)->mapWithKeys(fn ($locale) => [$locale => $render($viewName, $locale)])->filter();
+
+        if (!$content->count()) {
+            return false;
+        }
+
+        $attributes = [
+            'subject' => collect($locales)->mapWithKeys(fn ($locale) => [
+                $locale => $render($viewName . '-subject', $locale)
+                    ?: executeCallbackInLocale(
+                        $locale,
+                        fn () => (method_exists($trigger, 'getSubject') ? $trigger::getSubject() : null) ?: $trigger::getName(),
+                    ),
+            ]),
+            'content' => $content->toArray(),
+        ];
+
+        // A database notification's CTA lives on its button, not the body. When the trigger
+        // declares a default button handler, seed it on the DATABASE template.
+        if ($type === CommunicationType::DATABASE
+            && method_exists($trigger, 'defaultNotificationButtonHandler')
+            && ($handler = $trigger::defaultNotificationButtonHandler())) {
+            $attributes['custom_button_handler'] = $handler;
+        }
+
+        $type->handler(null)->save($this->id, $attributes);
+
+        return true;
     }
 
     /**

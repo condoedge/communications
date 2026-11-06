@@ -7,6 +7,8 @@ use Condoedge\Communications\Services\CommunicationHandlers\SmsCommunicationHand
 use Condoedge\Communications\Services\CommunicationHandlers\EmailCommunicationHandler;
 use Condoedge\Communications\Services\CommunicationHandlers\DatabaseCommunicationHandler;
 use Condoedge\Communications\Services\CommunicationHandlers\TaskCommunicationHandler;
+use Condoedge\Communications\Services\CommunicationHandlers\PushCommunicationHandler;
+use Condoedge\Communications\Services\CommunicationHandlers\Contracts\PushSender;
 use Condoedge\Utils\Facades\GlobalConfig;
 
 enum CommunicationType: int 
@@ -17,6 +19,7 @@ enum CommunicationType: int
     case SMS = 2;
     case DATABASE = 3;
     case TASK = 4;
+    case PUSH = 5;
 
     public function label()
     {
@@ -25,6 +28,7 @@ enum CommunicationType: int
             self::SMS => __('communications.communication-sms'),
             self::TASK => __('communications.communication-task'),
             self::DATABASE => __('communications.communication-dashboard'),
+            self::PUSH => __('communications.communication-push'),
         };
     }
 
@@ -41,6 +45,7 @@ enum CommunicationType: int
             self::SMS => 'bg-amber-100 text-amber-700',
             self::DATABASE => 'bg-emerald-100 text-emerald-700',
             self::TASK => 'bg-gray-100 text-gray-700',
+            self::PUSH => 'bg-purple-100 text-purple-700',
         };
     }
 
@@ -56,6 +61,7 @@ enum CommunicationType: int
             self::SMS => new SmsCommunicationHandler($communication, $this),
             self::DATABASE => new DatabaseCommunicationHandler($communication, $this),
             self::TASK => new TaskCommunicationHandler($communication, $this),
+            self::PUSH => new PushCommunicationHandler($communication, $this),
         };
     }
 
@@ -66,11 +72,38 @@ enum CommunicationType: int
             self::SMS => 'communications_channels.sms.enabled',
             self::DATABASE => 'communications_channels.database.enabled',
             self::TASK => 'communications_channels.task.enabled',
+            self::PUSH => 'communications_channels.push.enabled',
         };
     }
 
+    /**
+     * Whether communications on this channel are sent. PUSH also needs the host app
+     * to bind a PushSender: an app without a mobile app never gets the channel.
+     */
     public function enabled(): bool
     {
+        if ($this === self::PUSH && !app()->bound(PushSender::class)) {
+            return false;
+        }
+
         return GlobalConfig::get($this->enabledKey(), true);
+    }
+
+    /**
+     * Whether the channel is offered when editing templates. PUSH stays reserved to
+     * super admins while it is being tested, until `communications_channels.push.public`
+     * is turned on.
+     */
+    public function availableInEditor(): bool
+    {
+        if (!$this->enabled()) {
+            return false;
+        }
+
+        if ($this === self::PUSH) {
+            return isSuperAdmin() || GlobalConfig::get('communications_channels.push.public', false);
+        }
+
+        return true;
     }
 }
