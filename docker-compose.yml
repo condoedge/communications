@@ -1,0 +1,12 @@
+services:
+  mysql-test:
+    container_name: mysql-communications-tests
+    image: mysql:8.4
+    command: --authentication_policy=* --log_bin_trust_function_creators=1
+    tmpfs:
+      - /var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: testing_password
+      MYSQL_DATABASE: testbench
+    ports:
+      - "3310:3306"

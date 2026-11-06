@@ -15,8 +15,8 @@ use Illuminate\Contracts\Translation\HasLocalePreference;
  * RecipientOverride
  *
  * Fluent, send-time decorator around any Communicable. Lets callers swap the
- * email/phone for a single send and/or restrict which channels actually fire
- * for that recipient.
+ * email/phone/locale for a single send and/or restrict which channels actually
+ * fire for that recipient.
  *
  * Statically declares every channel contract; runtime gating happens through
  * the ChannelAware hook consumed by AbstractCommunicationHandler::notify().
@@ -32,7 +32,7 @@ class RecipientOverride implements
 {
     protected Communicable $inner;
 
-    /** @var array<string, mixed> e.g. ['email' => '...', 'phone' => '...'] */
+    /** @var array<string, mixed> e.g. ['email' => '...', 'phone' => '...', 'locale' => 'fr'] */
     protected array $overrides = [];
 
     /** @var array<int, class-string>|null null = all channels the inner supports */
@@ -73,6 +73,12 @@ class RecipientOverride implements
         return $this;
     }
 
+    public function withLocale(?string $locale): self
+    {
+        $this->overrides['locale'] = $locale;
+        return $this;
+    }
+
     /**
      * Restrict the recipient to the given channel interfaces.
      *
@@ -107,6 +113,12 @@ class RecipientOverride implements
         return $this->overrides['phone'] ?? $this->inner->getPhone();
     }
 
+    /** Only what withLocale() was given: the inner's own locale is not consulted. */
+    public function preferredLocale()
+    {
+        return $this->overrides['locale'] ?? null;
+    }
+
     /** Push devices of the wrapped recipient; acceptsChannel() already drops one that has no push. */
     public function getPushTokens(): array
     {
@@ -136,15 +148,6 @@ class RecipientOverride implements
     public function label()
     {
         return $this->inner->label();
-    }
-
-    public function preferredLocale()
-    {
-        if (!$this->inner || !method_exists($this->inner, 'preferredLocale')) {
-            return config('kompo.force_initial_locale', 'fr');
-        }
-
-        return $this->inner->preferredLocale();
     }
 
     // -- Communicable base scope methods ------------------------------------

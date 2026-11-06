@@ -26,7 +26,8 @@ class CommunicationByTeamList extends WhiteTable
         $this->rows = app(CommunicationStatsServiceContract::class)->perTeam([(int) $this->teamId]);
 
         $ids = $this->rows->pluck('teamId')->filter()->unique();
-        $this->teamNames = TeamModel::asSystemOperation()->whereIn('id', $ids)->pluck('team_name', 'id');
+
+        $this->teamNames = TeamModel::asSystemOperation()->whereIn('id', $ids)->get()->pluck('team_name', 'id');
     }
 
     public function query()

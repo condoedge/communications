@@ -8,6 +8,8 @@ use Condoedge\Communications\EventsHandling\CommunicationTriggeredListener;
 use Condoedge\Communications\EventsHandling\Contracts\CommunicableEvent;
 use Condoedge\Communications\Facades\ContentReplacer;
 use Condoedge\Communications\Models\CommunicationTemplateGroup;
+use Condoedge\Communications\Reminders\Console\PruneReminderClaimsCommand;
+use Condoedge\Communications\Reminders\Console\SendScheduledRemindersCommand;
 use Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\ContextEnhancer;
 use Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\MessageContentReplacer;
 use Condoedge\Communications\Services\EnhancedEditor\ReplacerManager\Parsers\BraceMentionParser;
@@ -63,6 +65,8 @@ class CondoedgeCommunicationServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 SeedTemplatesCommand::class,
+                SendScheduledRemindersCommand::class,
+                PruneReminderClaimsCommand::class,
             ]);
         }
     }
@@ -203,6 +207,7 @@ class CondoedgeCommunicationServiceProvider extends ServiceProvider
     protected function loadListeners()
     {
         $this->verifyCommunicationTriggers();
+        $this->verifyReminders();
 
         Event::listen(CommunicationTemplateGroup::getTriggers(), CommunicationTriggeredListener::class);
 
@@ -225,9 +230,28 @@ class CondoedgeCommunicationServiceProvider extends ServiceProvider
         }
     }
 
+    protected function verifyReminders()
+    {
+        app(\Condoedge\Communications\Reminders\ReminderRegistry::class)->validate();
+    }
+
     protected function loadCrons()
     {
-        // TODO WE SHOULD REMOVE OLD VOID GROUP TEMPLATES 
-        $schedule = $this->app->make(Schedule::class);
+        if (!$this->app->runningInConsole()) {
+            return;
+        }
+
+        $this->app->booted(function () {
+            $schedule = $this->app->make(Schedule::class);
+
+            $schedule->command('communications:send-reminders')
+                ->hourly()
+                ->onOneServer()
+                ->withoutOverlapping(55);
+
+            $schedule->command('communications:prune-reminder-claims')
+                ->weeklyOn(1, '03:00')
+                ->onOneServer();
+        });
     }
 }

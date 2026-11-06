@@ -3,6 +3,8 @@
 namespace Condoedge\Communications\Services\CommunicationHandlers;
 
 use Condoedge\Communications\Facades\ContextEnhancer;
+use Condoedge\Communications\Recipients\EmailGroup;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Condoedge\Communications\Models\CommunicationCategory;
 use Condoedge\Communications\Services\CommunicationHandlers\Contracts\EmailCommunicable;
@@ -49,13 +51,22 @@ class EmailCommunicationHandler extends AbstractCommunicationHandler
             return null;
         }
 
-        $email = secureCallCb(fn () => $communicable->getEmail());
+        // A group's getEmail() is the joined list, which matches no suppression row: ask per member.
+        $addresses = EmailGroup::isGroup($communicable)
+            ? (secureCallCb(fn () => EmailGroup::addressesOf($communicable)) ?? [])
+            : array_filter([secureCallCb(fn () => $communicable->getEmail())]);
 
-        if (!$email) {
+        if ($addresses === []) {
             return null; // no address to match; the sender reports 'no-email-address' downstream
         }
 
-        return $this->suppressions()->isSuppressed($email) ? 'unsubscribed' : null;
+        foreach ($addresses as $address) {
+            if (!$this->suppressions()->isSuppressed($address)) {
+                return null; // someone may still receive it; deliverableAddresses() drops the rest
+            }
+        }
+
+        return 'unsubscribed';
     }
 
     protected function category(): CommunicationCategory
@@ -107,23 +118,81 @@ class EmailCommunicationHandler extends AbstractCommunicationHandler
         $this->sendEach($communicables, function ($communicable) use ($layout, $params) {
             $perRecipientParams = ContextEnhancer::setCommunicable($communicable)->getEnhancedContext($params);
 
-            $recipientEmail = $communicable->getEmail();
+            $recipients = $this->deliverableAddresses($communicable);
 
-            if (!$recipientEmail || filter_var($recipientEmail, FILTER_VALIDATE_EMAIL) === false) {
+            if ($recipients === []) {
                 return 'no-email-address';
             }
 
-            $perRecipientParams = $this->withUnsubscribeParams($perRecipientParams, $recipientEmail);
+            $locale = self::recipientLocale($communicable);
 
-            $mail = Mail::to($recipientEmail);
+            foreach ($this->messagesFor($recipients) as $to) {
+                // More than one address only ever shares a message when no link is owed at all.
+                $messageParams = count($to) === 1
+                    ? $this->withUnsubscribeParams($perRecipientParams, $to[0])
+                    : $perRecipientParams;
 
-            if ($locale = self::recipientLocale($communicable)) {
-                $mail = $mail->locale($locale);
+                $mail = Mail::to($to);
+
+                if ($locale) {
+                    $mail = $mail->locale($locale);
+                }
+
+                $mail->send(new $layout($this->communication, $messageParams));
             }
-
-            $mail->send(new $layout($this->communication, $perRecipientParams));
 
             return null;
         });
+    }
+
+    /**
+     * The To: of each message this recipient becomes. A group shares one message, unless the send
+     * is suppressible: a message has a single List-Unsubscribe header, so each member needs a copy
+     * of their own to get a link of their own.
+     *
+     * @param  string[]  $recipients
+     * @return string[][]
+     */
+    protected function messagesFor(array $recipients): array
+    {
+        return $this->category()->isSuppressible()
+            ? array_map(fn (string $address) => [$address], $recipients)
+            : [$recipients];
+    }
+
+    /** @return string[] */
+    protected function deliverableAddresses($communicable): array
+    {
+        if (!EmailGroup::isGroup($communicable)) {
+            $address = $communicable->getEmail();
+
+            return $address && filter_var($address, FILTER_VALIDATE_EMAIL) !== false ? [$address] : [];
+        }
+
+        $declared = EmailGroup::addressesOf($communicable);
+
+        $deliverable = array_values(array_filter(
+            $declared,
+            fn (string $address) => filter_var($address, FILTER_VALIDATE_EMAIL) !== false,
+        ));
+
+        if (count($deliverable) !== count($declared)) {
+            Log::warning('Dropped undeliverable addresses from a grouped email recipient', [
+                'communication_id' => $this->communication->id,
+                'recipient' => get_class($communicable),
+                'dropped' => array_values(array_diff($declared, $deliverable)),
+                'kept' => count($deliverable),
+            ]);
+        }
+
+        if (!$this->category()->isSuppressible()) {
+            return $deliverable;
+        }
+
+        // Consent withdrawn by some members only: not logged, the rest of the group still receives.
+        return array_values(array_filter(
+            $deliverable,
+            fn (string $address) => !$this->suppressions()->isSuppressed($address),
+        ));
     }
 }

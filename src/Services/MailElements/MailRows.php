@@ -9,7 +9,8 @@ namespace Condoedge\Communications\Services\MailElements;
 class MailRows extends MailElement
 {
     protected $elements;
-    protected $gap = '12px';
+
+    protected $gap = null;
 
     public function __construct($elements = [])
     {
@@ -29,7 +30,7 @@ class MailRows extends MailElement
         $last = $this->elements->count() - 1;
 
         $rows = $this->elements->map(function ($element, $i) use ($last) {
-            $spacing = $i === $last ? '' : ' style="padding-bottom: ' . $this->gap . ';"';
+            $spacing = ($this->gap && $i !== $last) ? ' style="padding-bottom: ' . $this->gap . ';"' : '';
 
             return '<div' . $spacing . '>' . $this->renderElement($element) . '</div>';
         })->implode('');

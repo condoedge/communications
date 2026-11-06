@@ -40,4 +40,16 @@ return [
             // 'dashboard'
         ],
     ],
+
+    'reminders' => [
+        // ScheduledReminder classes that communications:send-reminders runs.
+        'scheduled' => [],
+
+        'default_hour' => 9,
+
+        // Null uses config('app.timezone').
+        'timezone' => null,
+
+        'prune_after_days' => 400,
+    ],
 ];

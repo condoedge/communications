@@ -23,6 +23,12 @@ class RecipientKey
         }
 
         if ($communicable instanceof EmailCommunicable) {
+            $group = static::groupIdentity($communicable);
+
+            if ($group !== null) {
+                return $group;
+            }
+
             $email = secureCallCb(fn () => $communicable->getEmail());
 
             if ($email) {
@@ -33,6 +39,24 @@ class RecipientKey
         // serialize() reproduces the same bytes for the same object state, so an unsaved or
         // keyless recipient still hashes consistently across a retry.
         return 'ser:' . (secureCallCb(fn () => md5(serialize($communicable))) ?? spl_object_hash($communicable));
+    }
+
+    protected static function groupIdentity($communicable): ?string
+    {
+        if (!EmailGroup::isGroup($communicable)) {
+            return null;
+        }
+
+        $addresses = secureCallCb(fn () => EmailGroup::addressesOf($communicable)) ?? [];
+
+        if ($addresses === []) {
+            return null;
+        }
+
+        $normalized = array_map(fn (string $address) => mb_strtolower($address), $addresses);
+        sort($normalized);
+
+        return 'emails:' . md5(implode(',', $normalized));
     }
 
     /** RecipientOverride decorates the real recipient at send time; identity is the underlying one. */

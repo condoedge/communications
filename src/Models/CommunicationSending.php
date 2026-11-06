@@ -2,6 +2,7 @@
 
 namespace Condoedge\Communications\Models;
 
+use Condoedge\Communications\Recipients\EmailGroup;
 use Condoedge\Communications\Recipients\RecipientKey;
 use Condoedge\Communications\Services\CommunicationHandlers\Contracts\EmailCommunicable;
 use Condoedge\Communications\Services\CommunicationHandlers\Contracts\HasCommunicationTeam;
@@ -96,7 +97,7 @@ class CommunicationSending extends Model
                     'status' => CommunicationSendingRecipientStatus::PENDING->value,
                     'name' => secureCallCb(fn () => (string) $communicable->label()) ?: null,
                     // Maybe it should be more abstract and just call a generic method that fills a "contact_info" field. This is something pending to change
-                    'email' => secureCallCb(fn () => $communicable instanceof EmailCommunicable ? $communicable->getEmail() : null),
+                    'email' => secureCallCb(fn () => static::loggedAddressFor($communicable)),
                     // getMorphClass(), as associate() did: the host's morph map alias, never the class name.
                     'recipient_type' => $identity instanceof EloquentModel ? $identity->getMorphClass() : null,
                     'recipient_id' => $identity instanceof EloquentModel ? $identity->getKey() : null,
@@ -121,6 +122,51 @@ class CommunicationSending extends Model
         foreach (array_chunk($pivot, static::INSERT_BATCH) as $batch) {
             DB::table('communication_sending_recipient_teams')->insert($batch);
         }
+    }
+
+    protected static function loggedAddressFor($communicable): ?string
+    {
+        if (!$communicable instanceof EmailCommunicable) {
+            return null;
+        }
+
+        if (!EmailGroup::isGroup($communicable)) {
+            return $communicable->getEmail();
+        }
+
+        return static::joinWithinColumn(EmailGroup::addressesOf($communicable));
+    }
+
+    /** @param string[] $addresses */
+    protected static function joinWithinColumn(array $addresses, int $limit = 255): ?string
+    {
+        if ($addresses === []) {
+            return null;
+        }
+
+        $joined = implode(', ', $addresses);
+
+        if (mb_strlen($joined) <= $limit) {
+            return $joined;
+        }
+
+        $kept = [];
+        $length = 0;
+
+        foreach ($addresses as $address) {
+            $suffix = ' (+' . (count($addresses) - count($kept)) . ' more)';
+            $candidate = $length + ($kept === [] ? 0 : 2) + mb_strlen($address);
+
+            if ($candidate + mb_strlen($suffix) > $limit) {
+                break;
+            }
+
+            $kept[] = $address;
+            $length = $candidate;
+        }
+
+        return ($kept === [] ? '' : implode(', ', $kept) . ' ')
+            . '(+' . (count($addresses) - count($kept)) . ' more)';
     }
 
     /**

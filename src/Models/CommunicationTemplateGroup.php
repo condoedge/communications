@@ -178,8 +178,9 @@ class CommunicationTemplateGroup extends Model
      * Create this group's template for one channel from its blade stub:
      * stubs/communication-templates/default-{trigger-slug}-{channel}-{locale}.blade.php.
      *
-     * The subject is the trigger's name, unless a `default-{trigger-slug}-{channel}-subject-{locale}`
-     * stub gives one (a push notification's title, for instance).
+     * The subject is the first of: a `default-{trigger-slug}-{channel}-subject-{locale}` stub (a push
+     * notification's title, for instance), the trigger's getSubject() when it declares one, then the
+     * trigger's name. Every stub renders in the locale it is written for.
      *
      * @return bool false when no stub exists for this channel
      */
@@ -193,7 +194,7 @@ class CommunicationTemplateGroup extends Model
 
         $render = function ($view, $locale) {
             return file_exists(resource_path('views/' . $view . '-' . $locale . '.blade.php'))
-                ? trim(view($view . '-' . $locale)->render())
+                ? trim(executeCallbackInLocale($locale, fn () => view($view . '-' . $locale)->render()))
                 : '';
         };
 
@@ -206,7 +207,10 @@ class CommunicationTemplateGroup extends Model
         $attributes = [
             'subject' => collect($locales)->mapWithKeys(fn ($locale) => [
                 $locale => $render($viewName . '-subject', $locale)
-                    ?: executeCallbackInLocale($locale, fn () => $trigger::getName()),
+                    ?: executeCallbackInLocale(
+                        $locale,
+                        fn () => (method_exists($trigger, 'getSubject') ? $trigger::getSubject() : null) ?: $trigger::getName(),
+                    ),
             ]),
             'content' => $content->toArray(),
         ];
