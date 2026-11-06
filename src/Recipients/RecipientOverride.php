@@ -142,15 +142,6 @@ class RecipientOverride implements
         return $this->inner->label();
     }
 
-    public function preferredLocale()
-    {
-        if (!$this->inner || !method_exists($this->inner, 'preferredLocale')) {
-            return config('kompo.force_initial_locale', 'fr');
-        }
-
-        return $this->inner->preferredLocale();
-    }
-
     // -- Communicable base scope methods ------------------------------------
     //
     // The decorator is constructed at send-time, never queried. These exist
