@@ -118,7 +118,7 @@ class DatabaseCommunicationHandler extends AbstractCommunicationHandler
         $isValidRoute = false;
         if ($handlerClass === null && $trigger) {
             $validRoutes = $this->getAllValidRoutes($trigger);
-            $isValidRoute = in_array($attributes['custom_button_href'] ?? null, array_keys($validRoutes), true);
+            $isValidRoute = in_array($attributes['custom_button_href'] ?? null, array_keys(collect($validRoutes)->all()), true);
         }
 
         if (!$isValidRoute) {

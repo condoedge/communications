@@ -22,6 +22,11 @@ class CommunicationManualList extends WhiteTable
     protected $permissionKey = 'Communication';
     protected $isResponsive = true;
 
+    /** The hand-fired trigger whose groups are listed; a subclass lists another one's. */
+    protected $trigger = ManualTrigger::class;
+    protected $helpText = 'communications.manual-help';
+    protected $createLabel = 'communications.create-manual';
+
     public function created()
     {
         $this->teamId = $this->prop('team_id') ?: currentTeamId();
@@ -30,14 +35,14 @@ class CommunicationManualList extends WhiteTable
     public function top()
     {
         return _Rows(
-            _Html('communications.manual-help')->class('text-sm text-gray-500 mb-3'),
+            _Html($this->helpText)->class('text-sm text-gray-500 mb-3'),
             _FlexBetween(
                 _Input()
                     ->placeholder('communications.search-manual')
                     ->name('search', false)
                     ->class('mb-0 w-full max-w-md')
                     ->serverFilter(),
-                _Button('communications.create-manual')->icon('plus')
+                _Button($this->createLabel)->icon('plus')
                     ->selfGet('createManual')->inModal()
                     ->checkAuthWrite($this->permissionKey, specificTeamId: $this->teamId),
             )->class('gap-3 items-end'),
@@ -50,7 +55,7 @@ class CommunicationManualList extends WhiteTable
 
         // The team's own manual communications — many per team (the (team_id, trigger) uniqueness
         // was relaxed for manual); the one-off direct_usage temps stay hidden.
-        return CommunicationTemplateGroup::manualForTeam($this->teamId)
+        return CommunicationTemplateGroup::manualForTeam($this->teamId, $this->trigger)
             ->when($search !== '', fn ($q) => $q->whereRaw('LOWER(title) LIKE ?', ["%{$search}%"]));
     }
 
@@ -101,7 +106,7 @@ class CommunicationManualList extends WhiteTable
         $links = array_filter([
             _DropdownLink('communications.action-edit')->selfGet('editManual', ['id' => $group->id])->inModal(),
             _DropdownLink('communications.action-send')->selfGet('sendManual', ['id' => $group->id])->inModal(),
-            $this->hasSendings($group) ? null : _DropdownLink('communications.action-delete')
+            !$this->deletable($group) ? null : _DropdownLink('communications.action-delete')
                 ->selfPost('deleteManual', ['id' => $group->id])->refresh(),
         ]);
 
@@ -117,18 +122,28 @@ class CommunicationManualList extends WhiteTable
             ->exists();
     }
 
-    /** Compose a new reusable manual communication, then open the editor on it (trigger is fixed). */
+    /** Once sent, a communication is kept for its log; a subclass that can undo a send may allow it. */
+    protected function deletable(CommunicationTemplateGroup $group): bool
+    {
+        return !$this->hasSendings($group);
+    }
+
+    /**
+     * Compose a new reusable communication for this list's trigger. Nothing is created here: the
+     * editor opens straight on its channels and makes the group itself, so leaving writes no row.
+     */
     public function createManual()
     {
-        // The team's own reusable manual communication (not a one-off direct_usage temp).
-        $group = new CommunicationTemplateGroup();
-        $group->trigger = ManualTrigger::class;
-        $group->title = __('communications.new-manual-communication');
-        $group->team_id = $this->teamId;
-        $group->direct_usage = false;
-        $group->save();
+        return new CommunicationTemplateForTriggerForm(null, [
+            'trigger' => $this->trigger,
+            'team_id' => $this->teamId,
+            'title' => $this->newGroupTitle(),
+        ]);
+    }
 
-        return new CommunicationTemplateForm($group->id);
+    protected function newGroupTitle(): string
+    {
+        return __('communications.new-manual-communication');
     }
 
     public function editManual($id)
@@ -139,14 +154,14 @@ class CommunicationManualList extends WhiteTable
     /** Fire the manual communication: pick the communicable type + recipients, then send. */
     public function sendManual($id)
     {
-        return ManualTrigger::manuallyForm($this->authorizedGroup($id)->id, $this->teamId);
+        return $this->trigger::manuallyForm($this->authorizedGroup($id)->id, $this->teamId);
     }
 
     public function deleteManual($id)
     {
         $group = $this->authorizedGroup($id);
 
-        if (!$this->hasSendings($group)) {
+        if ($this->deletable($group)) {
             $group->delete();
         }
     }
@@ -157,6 +172,6 @@ class CommunicationManualList extends WhiteTable
      */
     protected function authorizedGroup($id): CommunicationTemplateGroup
     {
-        return CommunicationTemplateGroup::manualForTeam($this->teamId)->findOrFail($id);
+        return CommunicationTemplateGroup::manualForTeam($this->teamId, $this->trigger)->findOrFail($id);
     }
 }

@@ -37,8 +37,7 @@ class SmsCommunicationHandler extends AbstractCommunicationHandler
 
             $notification = new $layout($this->communication, $perRecipientParams);
 
-            if ($communicable instanceof \Illuminate\Contracts\Translation\HasLocalePreference
-                && $locale = $communicable->preferredLocale()) {
+            if ($locale = self::recipientLocale($communicable)) {
                 $notification = $notification->locale($locale);
             }
 

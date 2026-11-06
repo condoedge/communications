@@ -79,12 +79,29 @@ abstract class AbstractCommunicationHandler
                 return false;
             }
 
+            if ($reason = $this->suppressionReasonFor($c)) {
+                $this->report->skipped($position, $reason); // consent withdrawn — no warning
+
+                return false;
+            }
+
             return true;
         });
 
         $this->notifyCommunicables($communicables->all(), $params);
 
         return $this->report;
+    }
+
+    /**
+     * Why this recipient must not be contacted on this channel, or null to proceed. Separate from
+     * ChannelAware: that asks the recipient what it supports, this asks whether consent allows it.
+     *
+     * @return string|null short reason recorded on the recipient row
+     */
+    protected function suppressionReasonFor($communicable): ?string
+    {
+        return null;
     }
 
     /**
@@ -160,8 +177,14 @@ abstract class AbstractCommunicationHandler
         return [
             _Translatable('Subject')->name('subject', false)->default(json_decode($attrs['subject'] ?? '{}')),
             _EnhancedEditor('Content')->name('content', false)->default(json_decode($attrs['content'] ?? '{}'))
-                ->filterVarsToThisIds($trigger::validVariablesIds(context: $context)),
+                ->filterVarsToThisIds($this->editorVariableIds($trigger, $context)),
         ];
+    }
+
+    /** The variables the editor offers. A channel may add its own on top of the trigger's. */
+    protected function editorVariableIds($trigger, $context): ?array
+    {
+        return $trigger::validVariablesIds(context: $context);
     }
 
     /**
@@ -171,7 +194,7 @@ abstract class AbstractCommunicationHandler
     final public function getForm($trigger = null, $context = [])
     {
         if ($trigger && !$this->typeIsValidToTrigger($trigger)) {
-            return _Html('The selected communication type is not valid for this trigger.')->class('text-center text-red-500');
+            return _Html('communication.invalid-communication-type')->class('text-center text-red-500');
         }
 
         return _Rows(
@@ -226,7 +249,20 @@ abstract class AbstractCommunicationHandler
     // LOCALE
 
     /**
-     * Run $callback with the locale temporarily switched to the recipient's preferredLocale().
+     * The recipient's own language, else the app's initial one. Sends run on a queue worker,
+     * where the ambient locale is config('app.locale') rather than what a visitor is served.
+     */
+    public static function recipientLocale($communicable): ?string
+    {
+        $locale = $communicable instanceof \Illuminate\Contracts\Translation\HasLocalePreference
+            ? $communicable->preferredLocale()
+            : null;
+
+        return $locale ?: (config('kompo.force_initial_locale') ?: null);
+    }
+
+    /**
+     * Run $callback with the locale temporarily switched to the recipient's recipientLocale().
      * Restores the previous locale even if $callback throws.
      *
      * Public static so it can be invoked from outside the handler hierarchy
@@ -238,10 +274,7 @@ abstract class AbstractCommunicationHandler
      */
     public static function withRecipientLocale($communicable, callable $callback)
     {
-        if (!$communicable instanceof \Illuminate\Contracts\Translation\HasLocalePreference) {
-            return $callback();
-        }
-        $locale = $communicable->preferredLocale();
+        $locale = self::recipientLocale($communicable);
         if (!$locale) {
             return $callback();
         }

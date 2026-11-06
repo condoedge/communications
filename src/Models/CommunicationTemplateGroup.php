@@ -53,9 +53,9 @@ class CommunicationTemplateGroup extends Model
      * another's groups. $teamId is never null here, so the system baseline (team_id NULL) and the
      * one-off direct_usage temps both stay out of reach.
      */
-    public function scopeManualForTeam($query, $teamId)
+    public function scopeManualForTeam($query, $teamId, $trigger = ManualTrigger::class)
     {
-        return $query->forTrigger(ManualTrigger::class)
+        return $query->forTrigger($trigger)
             ->where('team_id', $teamId)
             ->where(fn ($q) => $q->whereNull('direct_usage')->orWhere('direct_usage', false));
     }
@@ -223,19 +223,13 @@ class CommunicationTemplateGroup extends Model
         // A partial clone (group saved, templates half-written) would leave a broken override that
         // the resolver would still pick up. Wrap the whole deep clone so it is all-or-nothing.
         return \DB::transaction(function () use ($teamId) {
-            // One group per team per trigger — app-enforced (the DB unique was relaxed so a team can
-            // own several manual communications). The guard runs inside the transaction with a row
-            // lock so two concurrent copies (e.g. a double-submit) can't both pass exists() and then
-            // each insert a duplicate override. Fail fast with a clear message on a duplicate copy.
             $existing = static::query()->where('team_id', $teamId)
                 ->where('trigger', $this->trigger)
                 ->lockForUpdate()
-                ->exists();
+                ->first();
 
             if ($existing) {
-                throw new \RuntimeException(
-                    "Team {$teamId} already owns a communication template for trigger [{$this->trigger}]."
-                );
+                return $existing;
             }
 
             $clone = $this->replicate();

@@ -15,6 +15,9 @@ use Condoedge\Utils\Models\Model;
 
 class CommunicationSending extends Model
 {
+    /** Rows per bulk INSERT / UPDATE: 500 x ~11 columns stays far under MySQL's placeholder cap. */
+    protected const INSERT_BATCH = 500;
+
     protected $casts = [
         'status' => CommunicationSendingStatus::class,
         'sent_at' => 'datetime',
@@ -23,12 +26,12 @@ class CommunicationSending extends Model
     // RELATIONSHIPS
     public function communicationTemplate()
     {
-        return $this->belongsTo(CommunicationTemplate::class);
+        return $this->belongsTo(CommunicationTemplate::class)->withTrashed();
     }
 
     public function recipients()
     {
-        return $this->hasMany(CommunicationSendingRecipient::class, 'communication_sending_id');
+        return $this->hasMany(CommunicationSendingRecipient::class, 'communication_sending_id')->withTrashed();
     }
 
     /**
@@ -71,29 +74,53 @@ class CommunicationSending extends Model
      * communication's teams). A send relevant to several teams is therefore counted once but appears
      * in each of them.
      *
+     * Bulk-inserted in batches: a row-by-row save kept the enclosing transaction — and the FK locks
+     * it takes on the teams rows — open for two round trips per recipient, minutes on a broadcast.
+     * A bulk insert returns no ids, so rows carry their position and are matched back through it.
+     *
      * @param int[] $communicationTeams
      */
     protected function writeRecipientRows(Collection $communicables, array $communicationTeams, ?int $templateTeamId): void
     {
-        foreach ($communicables as $position => $communicable) {
-            $identity = static::unwrapRecipient($communicable);
+        $audit = $this->bulkAuditColumns();
+        $teamsByPosition = [];
 
-            $row = new CommunicationSendingRecipient;
-            $row->communication_sending_id = $this->id;
-            $row->status = CommunicationSendingRecipientStatus::PENDING;
-            $row->name = secureCallCb(fn () => (string) $communicable->label()) ?: null;
-            // Maybe it should be more abstract and just call a generic method that fills a "contact_info" field. This is something pending to change
-            $row->email = secureCallCb(fn () => static::loggedAddressFor($communicable));
+        foreach ($communicables->chunk(static::INSERT_BATCH) as $batch) {
+            $rows = [];
 
-            if ($identity instanceof EloquentModel) {
-                $row->recipient()->associate($identity);
+            foreach ($batch as $position => $communicable) {
+                $identity = static::unwrapRecipient($communicable);
+
+                $rows[] = $audit + [
+                    'communication_sending_id' => $this->id,
+                    'position' => $position,
+                    'status' => CommunicationSendingRecipientStatus::PENDING->value,
+                    'name' => secureCallCb(fn () => (string) $communicable->label()) ?: null,
+                    // Maybe it should be more abstract and just call a generic method that fills a "contact_info" field. This is something pending to change
+                    'email' => secureCallCb(fn () => static::loggedAddressFor($communicable)),
+                    // getMorphClass(), as associate() did: the host's morph map alias, never the class name.
+                    'recipient_type' => $identity instanceof EloquentModel ? $identity->getMorphClass() : null,
+                    'recipient_id' => $identity instanceof EloquentModel ? $identity->getKey() : null,
+                ];
+
+                $teamsByPosition[$position] = $this->teamsForRecipient($identity, $communicationTeams, $templateTeamId);
             }
 
-            $row->save();
+            CommunicationSendingRecipient::insert($rows);
+        }
 
-            $this->recipientRowIds[$position] = $row->id;
+        $this->recipientRowIds = $this->recipients()->pluck('id', 'position')->all();
 
-            $row->recordTeams($this->teamsForRecipient($identity, $communicationTeams, $templateTeamId));
+        $pivot = [];
+
+        foreach ($teamsByPosition as $position => $teamIds) {
+            foreach ($teamIds as $teamId) {
+                $pivot[] = ['communication_sending_recipient_id' => $this->recipientRowIds[$position], 'team_id' => $teamId];
+            }
+        }
+
+        foreach (array_chunk($pivot, static::INSERT_BATCH) as $batch) {
+            DB::table('communication_sending_recipient_teams')->insert($batch);
         }
     }
 
@@ -143,6 +170,18 @@ class CommunicationSending extends Model
     }
 
     /**
+     * What HasAddedModifiedByTrait and the timestamps would have written on save(), which a bulk
+     * insert skips: the acting user only when one is logged in, null otherwise (a queued send).
+     */
+    protected function bulkAuditColumns(): array
+    {
+        $userId = auth()->check() ? (auth()->id() ?? config('kompo-auth.default-added-by-modified-by')) : null;
+        $now = now();
+
+        return ['added_by' => $userId, 'modified_by' => $userId, 'created_at' => $now, 'updated_at' => $now];
+    }
+
+    /**
      * Stamp each recipient row with what actually happened to it, then derive the sending's own
      * status from those outcomes. A send where some recipients got through and others did not is
      * PARTIAL — reporting it as either SENT or FAILED misleads in both directions.
@@ -157,13 +196,16 @@ class CommunicationSending extends Model
 
         $sentAt = now();
 
-        // Grouped so a 5000-recipient send is a couple of UPDATEs instead of 5000.
+        // Grouped so a 5000-recipient send is a couple of UPDATEs instead of 5000; each group batched
+        // so a broadcast's id list never passes MySQL's 65,535-placeholder cap.
         foreach ($this->groupRowIdsByOutcome($report) as $group) {
-            $this->recipients()->whereIn('id', $group['ids'])->update([
-                'status' => $group['status']->value,
-                'sent_at' => $group['status'] === CommunicationSendingRecipientStatus::SENT ? $sentAt : null,
-                'error_message' => $group['error'],
-            ]);
+            foreach (array_chunk($group['ids'], static::INSERT_BATCH) as $ids) {
+                $this->recipients()->whereIn('id', $ids)->update([
+                    'status' => $group['status']->value,
+                    'sent_at' => $group['status'] === CommunicationSendingRecipientStatus::SENT ? $sentAt : null,
+                    'error_message' => $group['error'],
+                ]);
+            }
         }
 
         $sent = $report->countOf(CommunicationSendingRecipientStatus::SENT);
