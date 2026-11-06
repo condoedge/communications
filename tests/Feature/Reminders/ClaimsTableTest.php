@@ -9,10 +9,6 @@ use Illuminate\Support\Facades\Schema;
 /**
  * The unique index is the whole mechanism. Application code never decides whether a reminder was
  * already sent — this index does, which is the only thing that holds when two runs race.
- *
- * Asserting the index exists by NAME rather than trusting the migration ran means a later
- * "cleanup" that drops it fails here rather than in production six months of duplicate emails
- * later.
  */
 class ClaimsTableTest extends TestCase
 {
@@ -51,16 +47,9 @@ class ClaimsTableTest extends TestCase
             $rows->pluck('Column_name')->all(),
         );
 
-        // Non_unique = 0 IS the once-only guarantee. SHOW INDEX reports the same Key_name and the
-        // same column order for a plain index as for a unique one, so without this line a unique()
-        // quietly rewritten to index() keeps this test green and lets every reminder fire nightly.
         $this->assertEquals([0], $rows->pluck('Non_unique')->map(fn ($n) => (int) $n)->unique()->values()->all());
     }
 
-    /**
-     * rearm_key must be NOT NULL. MySQL treats NULLs in a unique index as distinct, so a nullable
-     * column here silently disables the whole once-only guarantee.
-     */
     public function test_the_rearm_key_is_not_nullable()
     {
         $column = collect(DB::select('SHOW COLUMNS FROM communication_reminder_claims'))

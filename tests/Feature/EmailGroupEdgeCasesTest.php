@@ -12,14 +12,6 @@ use Illuminate\Support\Facades\Mail;
 /**
  * The two degenerate group sizes — one member and none — which are where a grouping seam usually
  * breaks without anyone noticing.
- *
- * These live beside EmailGroupSeamTest rather than inside it because they pin the BOUNDARIES of the
- * seam rather than the seam itself: the sizes at which "a group" stops resembling the three-address
- * case every other test uses, and at which an off-by-one in the address handling stops being
- * visible in the To: header.
- *
- * The To: header is read off the array transport, not off a faked Mailable, so the assertions are
- * about what would leave the building rather than about what the caller asked Mail for.
  */
 class EmailGroupEdgeCasesTest extends TestCase
 {
@@ -45,15 +37,6 @@ class EmailGroupEdgeCasesTest extends TestCase
         return CommunicationType::EMAIL->handler($template)->notify(collect($communicables), []);
     }
 
-    /**
-     * A GROUP OF ONE IS INDISTINGUISHABLE FROM A PLAIN RECIPIENT ON THE WIRE.
-     *
-     * This is the case a host actually hits first and hits constantly: most organisations start with
-     * a single address, so if the group path mangled the one-member case — a stray comma, a To:
-     * built from the joined string rather than the list — it would break the majority of real sends
-     * while every fixture using three addresses stayed green. Asserted against the plain recipient's
-     * own output rather than against a literal, so the two paths are held together by construction.
-     */
     public function test_a_group_of_one_produces_exactly_what_a_plain_recipient_produces()
     {
         $this->dispatch([new EdgeGroupRecipient(['solo@example.test'])]);
@@ -68,15 +51,6 @@ class EmailGroupEdgeCasesTest extends TestCase
         $this->assertSame($viaPlain, $viaGroup, 'a one-address group must be wire-identical to a plain recipient');
     }
 
-    /**
-     * AN EMPTY GROUP MUST NOT PRODUCE AN ADDRESSLESS MESSAGE.
-     *
-     * Mail::to([]) does not throw — it builds a message with an empty To:, which most transports
-     * accept and then either bounce or, worse, deliver to whatever the envelope defaults to. The
-     * organisation is reported as sent to and nobody receives anything, so the failure surfaces as a
-     * complaint weeks later rather than as an error. The recipient is skipped instead, carrying the
-     * SAME reason string the single-address path uses so nothing downstream needs a new case.
-     */
     public function test_an_empty_group_is_skipped_rather_than_sent_to_nobody()
     {
         $report = $this->dispatch([new EdgeGroupRecipient([])]);
@@ -86,11 +60,6 @@ class EmailGroupEdgeCasesTest extends TestCase
         $this->assertSame('no-email-address', $report->outcomes()[0]['error']);
     }
 
-    /**
-     * An empty group does not take the rest of the send down with it: the position is skipped and
-     * every other recipient still receives. Stated separately because the all-or-nothing failure
-     * mode reappears at the SEND level even when it has been ruled out at the address level.
-     */
     public function test_an_empty_group_does_not_suppress_the_other_recipients()
     {
         $report = $this->dispatch([
@@ -108,13 +77,6 @@ class EmailGroupEdgeCasesTest extends TestCase
         $this->assertSame(2, $report->countOf(CommunicationSendingRecipientStatus::SENT));
     }
 
-    /**
-     * A group whose members are all whitespace is the empty case in disguise.
-     *
-     * Worth its own assertion because the address list is free text in at least one host, so "  "
-     * is a value that actually occurs, and a seam that only checked count() would send a message
-     * addressed to a blank string.
-     */
     public function test_a_group_of_blank_strings_is_treated_as_empty()
     {
         $report = $this->dispatch([new EdgeGroupRecipient(['   ', ''])]);

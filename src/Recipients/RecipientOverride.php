@@ -71,32 +71,6 @@ class RecipientOverride implements
         return $this;
     }
 
-    /**
-     * The language THIS send must be written in. null leaves the ambient locale alone.
-     *
-     * WITHOUT THIS SEAM A DECORATED SEND CANNOT CARRY A LANGUAGE AT ALL, and the failure is silent:
-     * both readers test `instanceof HasLocalePreference` on the OUTER object
-     * (EmailCommunicationHandler.php:52, AbstractCommunicationHandler.php:241), so before this class
-     * declared the interface the message rendered in whatever locale the process happened to be on —
-     * for a queued send that is config('app.locale'), which has nothing to do with the recipient.
-     * Nothing fails; a correct-looking message ships in the wrong language. Measured in Coolecto:
-     * CampaignStartingProductsReview's legacy sender rendered fr from the campaign and its ported
-     * form rendered the ambient en, and every test it had still passed.
-     *
-     * FORWARDING TO THE INNER WHEN THE INNER IS A HasLocalePreference WAS REJECTED, although the
-     * decorator forwards every other accessor and Coolecto's own port contract proposed it. It is
-     * not inert for hosts that made no edit: SISC wraps App\Models\Crm\Person — which implements
-     * HasLocalePreference — at seven event classes, and 91 of its 338,653 persons resolve a non-null
-     * preferredLocale(), so those sends would change language on a package upgrade alone, with no
-     * host edit and no gate to hold it. Answering only what a caller passed here leaves
-     * every existing wrapper exactly as it was, and a host that WANTS the inner's language passes
-     * `$inner->preferredLocale()` and says so at the call site.
-     *
-     * Which is also why an explicit null is not distinguished from "never called": with no
-     * forwarding the two mean the same thing, and both package readers short-circuit on a falsy
-     * locale, so `->withLocale($campaign?->getLanguage())` on a deleted campaign degrades to today's
-     * behaviour rather than to a different one.
-     */
     public function withLocale(?string $locale): self
     {
         $this->overrides['locale'] = $locale;
@@ -137,7 +111,7 @@ class RecipientOverride implements
         return $this->overrides['phone'] ?? $this->inner->getPhone();
     }
 
-    /** Only what withLocale() was given — see there for why the inner is deliberately not consulted. */
+    /** Only what withLocale() was given: the inner's own locale is not consulted. */
     public function preferredLocale()
     {
         return $this->overrides['locale'] ?? null;

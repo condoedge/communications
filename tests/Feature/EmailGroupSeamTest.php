@@ -15,17 +15,7 @@ use Illuminate\Contracts\Translation\HasLocalePreference;
 use Illuminate\Support\Facades\Mail;
 
 /**
- * The optional group seam on EmailCommunicable: one recipient, several addresses, ONE message.
- *
- * WHAT EACH HALF PROTECTS. The positive half is the new behaviour. The negative half — a recipient
- * that does NOT declare getEmailGroup() still producing exactly the message it produced before — is
- * the reason the seam is duck-typed rather than an interface, and it is the half that keeps every
- * existing communicable in every host correct with no edit. A regression there is silent: the
- * message still arrives, addressed to the same person, and only a host that fans a list out would
- * ever notice.
- *
- * The To: header is read off the array transport rather than off a faked Mailable, because a
- * Mail::fake() assertion proves what the caller asked for and not what would leave the building.
+ * The optional group seam on EmailCommunicable: one recipient, several addresses, one message.
  */
 class EmailGroupSeamTest extends TestCase
 {
@@ -51,17 +41,12 @@ class EmailGroupSeamTest extends TestCase
         return CommunicationType::EMAIL->handler($template)->notify(collect($communicables), []);
     }
 
-    // ---- the default: absence means one address, one message -------------
-
     public function test_a_recipient_that_declares_nothing_is_not_a_group()
     {
         $this->assertFalse(EmailGroup::isGroup(new SeamSingleRecipient('solo@example.test')));
         $this->assertSame([], EmailGroup::addressesOf(new SeamSingleRecipient('solo@example.test')));
     }
 
-    /**
-     * THE HALF THAT PROTECTS EVERY EXISTING HOST. Two undecorated recipients are still two messages.
-     */
     public function test_undeclared_recipients_still_get_one_message_each()
     {
         $this->dispatch([
@@ -81,8 +66,6 @@ class EmailGroupSeamTest extends TestCase
         $this->assertSame('no-email-address', $report->outcomes()[0]['error']);
     }
 
-    // ---- the seam --------------------------------------------------------
-
     public function test_a_declared_group_receives_one_message_addressed_to_every_member()
     {
         $this->dispatch([new SeamGroupRecipient(['a@example.test', 'b@example.test', 'c@example.test'])]);
@@ -93,10 +76,6 @@ class EmailGroupSeamTest extends TestCase
         );
     }
 
-    /**
-     * A group and a single recipient in the same send do not interfere: two positions, two messages,
-     * one of them carrying three addresses.
-     */
     public function test_a_group_and_a_single_recipient_coexist_in_one_send()
     {
         $report = $this->dispatch([
@@ -112,11 +91,6 @@ class EmailGroupSeamTest extends TestCase
         $this->assertCount(2, $report->outcomes());
     }
 
-    /**
-     * ONE POSITION PER GROUP, which is what the send log records. Stated as a test because the cost
-     * of the seam lives here: three addresses share ONE outcome, so per-address delivery status is
-     * gone and a SENT row means "the message was accepted", not "three people received it".
-     */
     public function test_a_group_occupies_exactly_one_delivery_report_position()
     {
         $report = $this->dispatch([new SeamGroupRecipient(['a@example.test', 'b@example.test', 'c@example.test'])]);
@@ -125,12 +99,6 @@ class EmailGroupSeamTest extends TestCase
         $this->assertSame(1, $report->countOf(CommunicationSendingRecipientStatus::SENT));
     }
 
-    /**
-     * A GROUP IS NOT ALL-OR-NOTHING: the undeliverable member is dropped and the rest still receive.
-     *
-     * The opposite choice — withholding the whole message — would make the group form strictly worse
-     * than the per-address fan-out it replaces, where a bad address only ever cost its own recipient.
-     */
     public function test_an_undeliverable_member_is_dropped_and_the_others_still_receive()
     {
         $report = $this->dispatch([new SeamGroupRecipient(['a@example.test', 'not-an-address', 'b@example.test'])]);
@@ -148,20 +116,6 @@ class EmailGroupSeamTest extends TestCase
         $this->assertSame('no-email-address', $report->outcomes()[0]['error']);
     }
 
-    /**
-     * ONE MESSAGE IS ONE LOCALE, taken from the group itself and actually applied to the mail.
-     *
-     * Asserted on the Mailable rather than on preferredLocale(), because the question is not what
-     * the recipient answers but whether the handler chained ->locale() onto the PendingMail. A group
-     * whose locale nothing applied looks identical from preferredLocale()'s side and renders in the
-     * worker's ambient locale — which for a queued send is config('app.locale') and has nothing to
-     * do with the recipient.
-     *
-     * A group is one message, so it is one locale by construction. That is not a compromise forced
-     * by this seam: it is what the senders being replaced did, one locale for one mail addressed to
-     * the whole list. A set of addresses needing different languages needs different messages, which
-     * means it is not a group.
-     */
     public function test_a_group_carries_one_locale_for_the_whole_message()
     {
         Mail::fake();
@@ -182,15 +136,6 @@ class EmailGroupSeamTest extends TestCase
         Mail::assertSentCount(1);
     }
 
-    // ---- the decorator ---------------------------------------------------
-
-    /**
-     * RecipientGroupOverride keeps the inner model as the identity while grouping the addresses.
-     *
-     * assertFalse on the PLAIN override is the load-bearing half: method_exists() is a property of
-     * the class, so a getEmailGroup() added to RecipientOverride itself would turn every existing
-     * override — including hosts that build one per address on purpose — into a group.
-     */
     public function test_only_the_group_override_declares_the_seam()
     {
         $inner = new SeamSingleRecipient('inner@example.test');
@@ -207,22 +152,6 @@ class EmailGroupSeamTest extends TestCase
         );
     }
 
-    /**
-     * A RECIPIENT WITH __call() IS NOT A GROUP — the predicate is method_exists(), never is_callable().
-     *
-     * This is the mutation the seam cannot survive, and it is the one that looks like a tidy-up:
-     * is_callable() answers TRUE for every method name on any object defining __call(), which is
-     * every Eloquent model in every host, since Model::__call forwards to the query builder. Both
-     * production hosts recruit models as recipients — SISC's App\Models\Crm\Person is an
-     * EmailCommunicable — so is_callable() here would declare all of them groups and then call a
-     * method they do not have; sendEach() catches the BadMethodCallException and records FAILED,
-     * i.e. every email to a model recipient stops, in a host that changed nothing.
-     *
-     * The fixture defines __call() and nothing else, because that IS the hazard, and it lives here
-     * rather than in a host suite: no host can be relied on to route an Eloquent recipient through
-     * this predicate in its own tests, so the object that makes the two predicates disagree has to
-     * be the package's.
-     */
     public function test_a_recipient_that_answers_every_method_through_call_is_not_a_group()
     {
         $catchAll = new SeamCatchAllRecipient('catch-all@example.test');
@@ -248,12 +177,6 @@ class EmailGroupSeamTest extends TestCase
         );
     }
 
-    /**
-     * A group's getEmail() is the whole list, and it FAILS filter_var on purpose.
-     *
-     * That is what makes a missed group branch fail visibly — the recipient is skipped and says so —
-     * rather than quietly mailing one address out of several and reporting the send complete.
-     */
     public function test_a_groups_get_email_is_the_joined_list_and_is_not_a_mailbox()
     {
         $group = new SeamGroupRecipient(['a@example.test', 'b@example.test']);
@@ -262,14 +185,6 @@ class EmailGroupSeamTest extends TestCase
         $this->assertFalse((bool) filter_var($group->getEmail(), FILTER_VALIDATE_EMAIL));
     }
 
-    // ---- the send log ----------------------------------------------------
-
-    /**
-     * The recipient row records the whole To: header, not one member of it.
-     *
-     * A group is one row, so one address would name a fraction of the audience with nothing
-     * indicating the rest existed.
-     */
     public function test_the_recipient_row_records_the_whole_group()
     {
         $sending = CommunicationSending::createOneForCommunicationTemplate(
@@ -280,7 +195,6 @@ class EmailGroupSeamTest extends TestCase
         $this->assertSame('a@example.test, b@example.test', $sending->recipients()->first()->email);
     }
 
-    /** An undeclared recipient still logs its single address, unchanged. */
     public function test_the_recipient_row_of_an_undeclared_recipient_is_unchanged()
     {
         $sending = CommunicationSending::createOneForCommunicationTemplate(
@@ -291,15 +205,6 @@ class EmailGroupSeamTest extends TestCase
         $this->assertSame('solo@example.test', $sending->recipients()->first()->email);
     }
 
-    /**
-     * A list too long for the column is truncated at a COMMA and says how many it dropped.
-     *
-     * `email` is a varchar(255) and this write runs inside the sending's transaction, so an
-     * over-length value is either a silently corrupted address in the audit log or, under MySQL
-     * strict mode, an exception that aborts the whole send — the organisation is then never written
-     * to at all. Real data reaches this: Coolecto has organisations whose owner-and-manager list
-     * joins to 866 characters.
-     */
     public function test_an_over_long_group_is_elided_rather_than_truncated_mid_address()
     {
         $addresses = collect(range(1, 40))
@@ -413,10 +318,7 @@ class SeamGroupRecipient implements EmailCommunicable
 }
 
 /**
- * A recipient that answers ANY method name through __call(), the way every Eloquent model does.
- *
- * It is NOT a group: it never declares getEmailGroup(), it merely cannot say no when asked whether
- * it could. Calling the method throws, exactly as `Person::getEmailGroup()` would.
+ * A recipient that answers any method name through __call(), the way every Eloquent model does.
  */
 class SeamCatchAllRecipient extends SeamSingleRecipient
 {

@@ -8,26 +8,7 @@ use Condoedge\Communications\Services\CommunicationHandlers\Contracts\EmailCommu
 use Condoedge\Communications\Tests\TestCase;
 
 /**
- * The identity of a grouped email recipient — several addresses, ONE message, ONE key.
- *
- * WHAT BREAKS WITHOUT THIS, and it is invisible from the outside: RecipientKey::for() is what
- * CommunicationTriggeredListener::idempotencyKeyFor() (line 237) builds the replay-window signature
- * from. A group's identity therefore has to depend on WHICH addresses are in it and not on the
- * order they came back in. The order is not stable in practice — it is whatever the host's query
- * returned, and Coolecto resolves an organisation's list through an unordered relation — so an
- * order-sensitive key makes a genuine accidental double-fire look like two different sends and
- * mails the whole organisation twice. Nothing errors; the duplicate is only ever noticed by the
- * people who received it.
- *
- * THE OPPOSITE MISTAKE IS ALSO PINNED HERE: sorting must not flatten the difference between two
- * groups that really are different. A key that ignored the tail would let one organisation's send
- * suppress another's inside the replay window, which loses a message entirely — the worse of the
- * two failures, and the reason the differing-tail case gets its own test rather than being folded
- * into the ordering one.
- *
- * Order still matters where it is actually observable: the To: header renders in declared order.
- * Identity and presentation are deliberately separated, which is why these assertions live against
- * RecipientKey rather than against the handler.
+ * The identity of a grouped email recipient — several addresses, one message, one key.
  */
 class RecipientKeyGroupIdentityTest extends TestCase
 {
@@ -55,10 +36,6 @@ class RecipientKeyGroupIdentityTest extends TestCase
         );
     }
 
-    /**
-     * Case is not part of a mailbox's identity, and the host does not normalise for us
-     * (EmailGroup::addressesOf deliberately leaves case alone), so the key has to.
-     */
     public function test_identity_ignores_address_case()
     {
         $lower = new KeyProbeGroup(['a@example.test', 'b@example.test']);
@@ -67,16 +44,6 @@ class RecipientKeyGroupIdentityTest extends TestCase
         $this->assertSame(RecipientKey::for($lower), RecipientKey::for($mixed));
     }
 
-    /**
-     * A GROUP IS NOT ITS ONLY MEMBER, even when it has exactly one.
-     *
-     * The handler treats a one-address group exactly like a plain recipient — one message, one
-     * address — and that equivalence is asserted in EmailGroupSeamTest. Identity is deliberately
-     * NOT equivalent: a group is a standing audience that can gain a member between two fires,
-     * while the plain recipient is one person. Giving them the same key would let a send to the
-     * organisation and a send to the one person who currently staffs it suppress each other inside
-     * the replay window, and the message that goes missing is the one nobody is watching for.
-     */
     public function test_a_one_address_group_is_not_the_same_recipient_as_that_address_alone()
     {
         $group = new KeyProbeGroup(['solo@example.test']);
@@ -85,14 +52,6 @@ class RecipientKeyGroupIdentityTest extends TestCase
         $this->assertNotSame(RecipientKey::for($group), RecipientKey::for($plain));
     }
 
-    /**
-     * AN EMPTY GROUP MUST NOT COLLAPSE INTO ONE SHARED IDENTITY.
-     *
-     * Hashing the address list would give every currently-unreachable organisation the SAME key,
-     * because they all hash the empty list. Two different organisations would then deduplicate each
-     * other inside the replay window — and an organisation with no address today is exactly the one
-     * whose list is about to be filled in, so the collision would land on real sends.
-     */
     public function test_two_empty_groups_are_still_distinguishable()
     {
         $one = new KeyProbeGroup([], 'org-one');
@@ -105,14 +64,6 @@ class RecipientKeyGroupIdentityTest extends TestCase
         );
     }
 
-    /**
-     * A PLAIN RECIPIENT'S KEY IS UNTOUCHED — the half that keeps SISC correct.
-     *
-     * SISC wraps App\Models\Crm\Person in RecipientOverride at seven event classes and declares no
-     * groups anywhere, so every key it computes must come out byte-identical to before this change.
-     * Pinned as a literal rather than compared to a second computation, so that a change to the
-     * format cannot make this test agree with itself.
-     */
     public function test_a_plain_recipients_key_is_unchanged()
     {
         $this->assertSame(
@@ -126,10 +77,6 @@ class RecipientKeyGroupIdentityTest extends TestCase
         );
     }
 
-    /**
-     * A plain RecipientOverride is not a group and never becomes one — the decorator is stripped by
-     * unwrap() and identity stays the inner recipient's, exactly as before.
-     */
     public function test_a_plain_override_still_keys_to_its_inner_recipient()
     {
         $inner = new KeyProbeSingle('inner@example.test');

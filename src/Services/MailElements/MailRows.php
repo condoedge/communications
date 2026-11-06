@@ -10,7 +10,6 @@ class MailRows extends MailElement
 {
     protected $elements;
 
-    /** Off by default — elements carry their own spacing (a MailButton has a bottom margin). */
     protected $gap = null;
 
     public function __construct($elements = [])

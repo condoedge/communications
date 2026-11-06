@@ -6,12 +6,7 @@ use Condoedge\Communications\EventsHandling\Contracts\CommunicableEvent;
 use Illuminate\Support\Collection;
 
 /**
- * A trigger whose recipient-facing subject line is not the same sentence as its admin-facing
- * title. Both strings carry the active locale so a seeding bug that resolves either of them
- * outside the per-locale closure produces two identical locales rather than passing silently.
- *
- * getSubject() is NOT declared on CommunicableEvent and never will be — see the seeding site's
- * docblock in CommunicationTemplateGroup::createForTrigger().
+ * A trigger whose subject differs from its title. Both strings carry the active locale.
  */
 class SubjectOverridingTrigger implements CommunicableEvent
 {

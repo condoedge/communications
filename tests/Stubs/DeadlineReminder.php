@@ -11,8 +11,6 @@ use Illuminate\Database\Eloquent\Model;
 
 /**
  * The package's own reminder, used to test the base class without any host's domain.
- *
- * Deliberately minimal: one filter (a reachable address), one stored anchor column, one event.
  */
 class DeadlineReminder extends AbstractDateAnchoredReminder
 {
@@ -43,8 +41,6 @@ class DeadlineReminder extends AbstractDateAnchoredReminder
 
     protected function subjectQuery(ReminderScope $scope): Builder
     {
-        // A subject with no address has nobody to tell, so it is filtered out in SQL rather than
-        // claimed and released one row at a time.
         return Deadline::query()->whereNotNull('email');
     }
 

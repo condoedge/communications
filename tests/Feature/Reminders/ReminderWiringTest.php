@@ -7,8 +7,7 @@ use Condoedge\Communications\Tests\TestCase;
 use Illuminate\Console\Scheduling\Schedule;
 
 /**
- * A reminder can be perfectly correct and still send nothing: it has to be registered, and the
- * command has to be on a schedule. Both have failed silently in this codebase before.
+ * A reminder sends only when it is registered and the command is on a schedule.
  */
 class ReminderWiringTest extends TestCase
 {
@@ -50,11 +49,6 @@ class ReminderWiringTest extends TestCase
         $this->addToAssertionCount(1);
     }
 
-    /**
-     * Goes through loadListeners() rather than calling verifyReminders() directly, so that deleting
-     * the CALL SITE fails too. A test that invokes verifyReminders() by name stays green with the
-     * line removed from loadListeners(), which is the half that actually runs at boot.
-     */
     public function test_boot_refuses_a_registry_naming_a_class_that_does_not_exist()
     {
         config(['kompo-communications.reminders.scheduled' => ['Nope\\MissingReminder']]);

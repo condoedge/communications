@@ -20,6 +20,8 @@ class CommunicationTriggeredListener implements ShouldQueue
 {
     use InteractsWithQueue;
 
+    public $deleteWhenMissingModels = true;
+
     /**
      * Window an event with an explicit getIdempotencyKey() stays deduplicated for. Only events that
      * opt in get a long window: they alone know that two fires mean the same business fact.
