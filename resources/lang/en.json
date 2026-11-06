@@ -31,6 +31,7 @@
 	"communications.communication-email": "Email",
 	"communications.communication-event": "Event",
 	"communications.communication-sms": "SMS",
+	"communications.communication-push": "Push notification",
 	"communications.communication-task": "Task",
 	"communications.communication-template": "Template",
 	"communications.communications": "Communications",

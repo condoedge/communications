@@ -40,4 +40,14 @@ interface TemplateSeedingServiceContract
      * @param class-string $trigger
      */
     public function seedForTrigger(string $trigger): ?CommunicationTemplateGroup;
+
+    /**
+     * Add one channel, from its stubs, to the groups that already exist without it — the
+     * baseline and the team-owned copies alike. For a channel added after the environment
+     * was seeded, which seedAll() never revisits. A template of that channel that exists,
+     * even soft-deleted by an admin, is left alone. One-off manual temps are skipped.
+     *
+     * @return Collection<int, CommunicationTemplateGroup> the groups that received the channel
+     */
+    public function seedChannelIntoExistingGroups(\Condoedge\Communications\Models\CommunicationType $type): Collection;
 }
