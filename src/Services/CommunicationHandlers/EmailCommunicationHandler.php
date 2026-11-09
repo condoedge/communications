@@ -113,7 +113,7 @@ class EmailCommunicationHandler extends AbstractCommunicationHandler
      */
     public function notifyCommunicables(array $communicables, $params = [])
     {
-        $layout = $params['layout'] ?? DefaultLayoutEmailCommunicable::class;
+        $layout = $params['layout'] ?? config('kompo-communications.email-layout', DefaultLayoutEmailCommunicable::class);
 
         $this->sendEach($communicables, function ($communicable) use ($layout, $params) {
             $perRecipientParams = ContextEnhancer::setCommunicable($communicable)->getEnhancedContext($params);

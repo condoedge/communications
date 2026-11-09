@@ -9,6 +9,9 @@ return [
 
     ],
 
+    // The mailable class every email renders through unless the event passes its own `layout`.
+    'email-layout' => \Condoedge\Communications\Services\CommunicationHandlers\Layout\DefaultLayoutEmailCommunicable::class,
+
     'notification_button_handlers' => [
         \Kompo\Auth\Models\Monitoring\DefaultNotificationButtonHandler::class
             => 'communications.handler-default-single-button',

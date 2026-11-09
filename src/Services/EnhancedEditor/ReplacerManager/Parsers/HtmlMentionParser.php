@@ -41,12 +41,15 @@ class HtmlMentionParser implements MentionParserInterface
 
     public function replaceMention(string $subject, string $varName, string $replaceWith): string
     {
-        $subject = preg_replace($this->getHtmlMentionPattern($varName), $replaceWith, $subject) ?? $subject;
+        // A callback keeps the value literal: `$1` or `\1` in it is text, not a back-reference.
+        $literal = fn () => $replaceWith;
+
+        $subject = preg_replace_callback($this->getHtmlMentionPattern($varName), $literal, $subject) ?? $subject;
 
         $label = $this->getMentionLabel($varName);
 
         if ($label !== null) {
-            $subject = preg_replace($this->getBacktickMentionPattern($label), $replaceWith, $subject) ?? $subject;
+            $subject = preg_replace_callback($this->getBacktickMentionPattern($label), $literal, $subject) ?? $subject;
         }
 
         return $subject;

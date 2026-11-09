@@ -157,8 +157,7 @@ class MessageContentReplacer
                 $this->processVariable($vars, $type, parsedText: $parsedText);
             });
         } catch (\Exception $e) {
-            // Log the error or handle it as needed
-            \Log::error("Error processing variables in MessageContentReplacer: " . $e->getMessage());
+            Log::error("Error processing variables in MessageContentReplacer: " . $e->getMessage());
 
             throw new \RuntimeException("Failed to process variables in the text.");
         }
@@ -186,7 +185,7 @@ class MessageContentReplacer
                 $handler = $this->handlers[$id] ?? null;
                 if ($handler) {
                     $args = $this->getHandlerArguments($handler, $type);
-                    $parsedText = $parser->replaceMention($parsedText, $id, $this->handlerCalling($handler, $args));
+                    $parsedText = $parser->replaceMention($parsedText, $id, $this->handlerCalling($handler, $args, $id));
                 } else if ($automaticHandling) {
                     $parsedText = $this->handleAutomaticReplacement($id, $parsedText, $parser);
                 }
@@ -194,9 +193,21 @@ class MessageContentReplacer
         }
     }
 
-    protected function handlerCalling($handler, $args)
+    /** A handler that throws renders as an empty block, so the rest of the message still goes out. */
+    protected function handlerCalling($handler, $args, ?string $varId = null)
     {
-        $result = $handler(...$args);
+        try {
+            $result = $handler(...$args);
+        } catch (\Throwable $e) {
+            Log::error("Variable handler failed in MessageContentReplacer; rendered empty: {$e->getMessage()}", [
+                'variable' => $varId,
+                'trigger' => $this->context['trigger'] ?? null,
+                'context_keys' => array_keys($this->context),
+                'exception' => $e,
+            ]);
+
+            return '';
+        }
 
         foreach ($this->postProcessors as $processor) {
             $result = $processor($result);
