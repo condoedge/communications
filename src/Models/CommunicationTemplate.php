@@ -76,8 +76,8 @@ class CommunicationTemplate extends Model
      */
     public function notify(array|Collection $communicables, $params = []): ?CommunicationSending
     {
-        if (!$this->type->enabled()) {
-            Log::warning('Attempted to send a disabled communication channel', [
+        if (!$this->type->sendable()) {
+            Log::warning('Attempted to send a disabled or unconfigured communication channel', [
                 'communication_id' => $this->id,
                 'channel' => $this->type?->value,
             ]);

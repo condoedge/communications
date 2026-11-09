@@ -42,6 +42,8 @@ Our actual interfaces are:
 - `EmailCommunicable`
 - `SMSCommunicable`
 - `DatabaseCommunicable` (Notifications)
+- `TaskCommunicable`
+- `PushCommunicable` (mobile push notifications — see [Push](#push))
 
 ### Setting Up Triggers
 
@@ -175,8 +177,20 @@ Here's a breakdown of the numbering system for each type of communication:
 - Email: 1
 - SMS: 2
 - Notification: 3
+- Task: 4
+- Push: 5
 
 Make sure to update the appropriate file for each trigger and communication type.
+
+The subject of a seeded template is, in order: a `default-{trigger}-{type}-subject-{locale}.blade.php` stub when one exists (a push title, for instance), the trigger's `getSubject()` when it declares one, then the trigger's `getName()`.
+
+`php artisan communications:seed-templates` creates the groups for triggers that have none. To add a channel to groups that were seeded before that channel had stubs, pass it by name:
+
+```bash
+php artisan communications:seed-templates --add-channel=push
+```
+
+Only groups lacking that channel are touched, and a template an admin deleted is not brought back.
 
 ## Sending communications ways
 
@@ -192,6 +206,33 @@ We use the vonage API to send SMS.
 ### Database
 
 We use the Laravel Notification system to send notifications with some enhancements to manage them. Giving the possibility to provide some custom notifications handlers.
+
+### Push
+
+The package renders the notification and decides who gets it; your app delivers it. Nothing is sent, and the channel is not offered in the template editor, until you bind a sender:
+
+```php
+use Condoedge\Communications\Services\Push\PushMessage;
+use Condoedge\Communications\Services\Push\PushSenderContract;
+
+class ExpoPushSender implements PushSenderContract
+{
+    public function send(PushMessage $message): void
+    {
+        // $message->tokens, ->title, ->body, ->data, ->androidChannel
+        // One message is one recipient on all of their devices. Throw to mark them FAILED.
+    }
+}
+
+// In a service provider
+$this->app->bind(PushSenderContract::class, ExpoPushSender::class);
+```
+
+Recipients implement `PushCommunicable::getPushTokens()`; one with no token is skipped as `no-push-device`.
+
+The template's subject is the title and its content, flattened to plain text, the body. Where a tap leads comes from the `push_route` param, else from a `pushRoute(array $params): ?string` method on the trigger, which receives the per-recipient context. `push_channel` sets the Android notification channel. To change how a push is built, extend `DefaultLayoutPushCommunicable` and pass your class as the `layout` param, as for email and SMS.
+
+While you roll the channel out, the editor shows it to super admins only (`kompo-communications.channels.restricted-editor`). Open it to every admin with the global config `communications_channels.push.public`. This restricts the editor only: a push template that exists is sent to everyone it targets.
 
 ### Extending sending ways
 

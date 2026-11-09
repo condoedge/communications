@@ -5,6 +5,7 @@ namespace Condoedge\Communications\Components;
 use Condoedge\Communications\Models\CommunicationTemplateGroup;
 use Condoedge\Communications\Models\CommunicationType;
 use Condoedge\Communications\Triggers\ManualTrigger;
+use Condoedge\Utils\Facades\GlobalConfig;
 use Condoedge\Utils\Kompo\Common\Modal;
 
 class CommunicationTemplateForm extends Modal
@@ -181,9 +182,30 @@ class CommunicationTemplateForm extends Modal
     protected function channelsFor($trigger)
     {
         return collect(CommunicationType::cases())
-            ->reject(fn($t) => !$t->availableInEditor())
+            ->filter(fn($t) => static::offeredInEditor($t))
             ->filter(fn($t) => !$trigger || !method_exists($trigger, 'acceptsChannel') || $trigger::acceptsChannel($t))
             ->values();
+    }
+
+    /**
+     * Whether the editor offers this channel to whoever is looking. A channel that cannot send in
+     * this app is never offered. One being rolled out — listed in
+     * `kompo-communications.channels.restricted-editor` — stays with super admins until the host
+     * turns on `communications_channels.{channel}.public`.
+     *
+     * This hides the channel from the editor only: a template that already exists on a restricted
+     * channel is still dispatched to every recipient.
+     */
+    public static function offeredInEditor(CommunicationType $type): bool
+    {
+        if (!$type->sendable()) {
+            return false;
+        }
+
+        $restricted = in_array($type->configKey(), config('kompo-communications.channels.restricted-editor', []), true);
+
+        return (bool) GlobalConfig::get("communications_channels.{$type->configKey()}.public", !$restricted)
+            || (bool) isSuperAdmin();
     }
 
     /** EMAIL unless the trigger refuses it — a database-only trigger must not open on a form it cannot use. */

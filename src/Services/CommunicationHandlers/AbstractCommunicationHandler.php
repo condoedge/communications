@@ -34,6 +34,15 @@ abstract class AbstractCommunicationHandler
         return CommunicableEvent::class;
     }
 
+    /**
+     * Whether this app has what the channel needs to deliver. A channel that depends on something
+     * the host must provide overrides this; CommunicationType::sendable() is what consults it.
+     */
+    public function isConfigured(): bool
+    {
+        return true;
+    }
+
     // NOTIFICATION
 
     /**

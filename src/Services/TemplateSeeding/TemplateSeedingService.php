@@ -3,6 +3,7 @@
 namespace Condoedge\Communications\Services\TemplateSeeding;
 
 use Condoedge\Communications\Models\CommunicationTemplateGroup;
+use Condoedge\Communications\Models\CommunicationType;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -23,13 +24,25 @@ class TemplateSeedingService implements TemplateSeedingServiceContract
             ->values();
     }
 
-    public function seedChannelIntoExistingGroups(\Condoedge\Communications\Models\CommunicationType $type): Collection
+    public function seedChannelIntoExistingGroups(CommunicationType $type): Collection
     {
         return CommunicationTemplateGroup::whereIn('trigger', CommunicationTemplateGroup::getTriggers())
             ->where(fn ($q) => $q->whereNull('direct_usage')->orWhere('direct_usage', false))
             ->whereDoesntHave('communicationTemplates', fn ($q) => $q->withTrashed()->where('type', $type->value))
             ->get()
-            ->filter(fn (CommunicationTemplateGroup $group) => DB::transaction(fn () => $group->seedChannelFromStub($type)))
+            ->filter(fn (CommunicationTemplateGroup $group) => DB::transaction(function () use ($group, $type) {
+                if (!$group->seedChannelFromStub($type)) {
+                    return false;
+                }
+
+                // The same finishing a fresh seed gets, or a DATABASE template added later would
+                // be the only one without its trigger's default button.
+                if ($type === CommunicationType::DATABASE) {
+                    $this->applyDatabaseDefaults($group);
+                }
+
+                return true;
+            }))
             ->values();
     }
 
@@ -47,13 +60,19 @@ class TemplateSeedingService implements TemplateSeedingServiceContract
             $group = CommunicationTemplateGroup::createForTrigger($trigger);
 
             if ($group) {
-                if (!$this->applyDefaultButtonHandler($group, $trigger)) {
-                    $this->applyDefaultButtonLabelAndAction($group, $trigger);
-                }
+                $this->applyDatabaseDefaults($group);
             }
 
             return $group;
         });
+    }
+
+    /** What a freshly seeded DATABASE template needs beyond its stub: the trigger's default button. */
+    protected function applyDatabaseDefaults(CommunicationTemplateGroup $group): void
+    {
+        if (!$this->applyDefaultButtonHandler($group, $group->trigger)) {
+            $this->applyDefaultButtonLabelAndAction($group, $group->trigger);
+        }
     }
 
     /**

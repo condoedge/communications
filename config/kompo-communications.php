@@ -31,6 +31,11 @@ return [
         'categories' => ['notification', 'marketing'],
     ],
 
+    'channels' => [
+        // Editor only: templates that exist on a restricted channel are still sent.
+        'restricted-editor' => ['push'],
+    ],
+
     'manual-trigger' => [
         'valid-variables' => [
             // 'App\Models\User' => ['user_first_name', 'user_last_name', 'user_email'],

@@ -10,14 +10,14 @@ use Illuminate\Console\Command;
 class SeedTemplatesCommand extends Command
 {
     protected $signature = 'communications:seed-templates
-        {--add-channel= : Also add this channel (CommunicationType value, e.g. 5 for push) to the existing groups that lack it, from its stubs.}';
+        {--add-channel= : Also add this channel (its name, e.g. push, or its CommunicationType value) to the existing groups that lack it, from its stubs.}';
 
     protected $description = 'Create default CommunicationTemplateGroup + per-channel templates for every registered communication trigger. Idempotent.';
 
     public function handle(TemplateSeedingServiceContract $service): int
     {
         if ($this->option('add-channel') !== null) {
-            $type = CommunicationType::tryFrom((int) $this->option('add-channel'));
+            $type = CommunicationType::tryFromInput($this->option('add-channel'));
 
             if (!$type) {
                 $this->error('Unknown channel: ' . $this->option('add-channel'));

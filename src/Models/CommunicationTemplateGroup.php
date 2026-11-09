@@ -127,7 +127,7 @@ class CommunicationTemplateGroup extends Model
     protected function getValidCommTypesForTrigger(string $trigger): array
     {
         return collect(CommunicationType::cases())
-            ->reject(fn($t) => !$t->enabled())
+            ->reject(fn($t) => !$t->sendable())
             ->filter(fn($t) => !method_exists($trigger, 'acceptsChannel') || $trigger::acceptsChannel($t))
             ->map(fn($t) => $t->value)
             ->all();
@@ -169,7 +169,11 @@ class CommunicationTemplateGroup extends Model
         $communicationTemplate->title = $trigger::getName();
         $communicationTemplate->save();
 
-        collect(CommunicationType::cases())->each(fn ($type) => $communicationTemplate->seedChannelFromStub($type));
+        // foreach, not each(): seedChannelFromStub() answers false for a channel with no stub, and
+        // each() takes a false as "stop" — every channel after the first stubless one went unseeded.
+        foreach (CommunicationType::cases() as $type) {
+            $communicationTemplate->seedChannelFromStub($type);
+        }
 
         return $communicationTemplate;
     }

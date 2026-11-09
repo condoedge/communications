@@ -8,7 +8,6 @@ use Condoedge\Communications\Services\CommunicationHandlers\EmailCommunicationHa
 use Condoedge\Communications\Services\CommunicationHandlers\DatabaseCommunicationHandler;
 use Condoedge\Communications\Services\CommunicationHandlers\TaskCommunicationHandler;
 use Condoedge\Communications\Services\CommunicationHandlers\PushCommunicationHandler;
-use Condoedge\Communications\Services\CommunicationHandlers\Contracts\PushSender;
 use Condoedge\Utils\Facades\GlobalConfig;
 
 enum CommunicationType: int 
@@ -65,45 +64,42 @@ enum CommunicationType: int
         };
     }
 
+    /** The channel's segment in config keys and on the command line: `communications_channels.{key}.*`. */
+    public function configKey(): string
+    {
+        return strtolower($this->name);
+    }
+
     public function enabledKey(): string
     {
-        return match ($this) {
-            self::EMAIL => 'communications_channels.email.enabled',
-            self::SMS => 'communications_channels.sms.enabled',
-            self::DATABASE => 'communications_channels.database.enabled',
-            self::TASK => 'communications_channels.task.enabled',
-            self::PUSH => 'communications_channels.push.enabled',
-        };
+        return "communications_channels.{$this->configKey()}.enabled";
     }
 
-    /**
-     * Whether communications on this channel are sent. PUSH also needs the host app
-     * to bind a PushSender: an app without a mobile app never gets the channel.
-     */
+    /** Whether the channel is switched on. Config only: what the channel needs to deliver is sendable()'s question. */
     public function enabled(): bool
     {
-        if ($this === self::PUSH && !app()->bound(PushSender::class)) {
-            return false;
-        }
-
-        return GlobalConfig::get($this->enabledKey(), true);
+        return (bool) GlobalConfig::get($this->enabledKey(), true);
     }
 
     /**
-     * Whether the channel is offered when editing templates. PUSH stays reserved to
-     * super admins while it is being tested, until `communications_channels.push.public`
-     * is turned on.
+     * Whether a communication on this channel can go out in this app: switched on, and its handler
+     * has what it needs. The handler answers the second half, so a channel with a host-side
+     * dependency (push and its sender) needs no special case here.
      */
-    public function availableInEditor(): bool
+    public function sendable(): bool
     {
-        if (!$this->enabled()) {
-            return false;
+        return $this->enabled() && $this->handler(null)->isConfigured();
+    }
+
+    /** From what an operator types: the case value ("5") or its name in any case ("push"). */
+    public static function tryFromInput(?string $input): ?self
+    {
+        $input = trim((string) $input);
+
+        if (ctype_digit($input)) {
+            return self::tryFrom((int) $input);
         }
 
-        if ($this === self::PUSH) {
-            return isSuperAdmin() || GlobalConfig::get('communications_channels.push.public', false);
-        }
-
-        return true;
+        return collect(self::cases())->first(fn (self $type) => $type->configKey() === strtolower($input));
     }
 }

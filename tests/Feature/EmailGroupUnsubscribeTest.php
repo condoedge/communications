@@ -7,6 +7,7 @@ use Condoedge\Communications\Models\CommunicationTemplate;
 use Condoedge\Communications\Models\CommunicationTemplateGroup;
 use Condoedge\Communications\Models\CommunicationType;
 use Condoedge\Communications\Services\CommunicationHandlers\Contracts\EmailCommunicable;
+use Condoedge\Communications\Services\CommunicationHandlers\Layout\DefaultLayoutEmailCommunicable;
 use Condoedge\Communications\Services\Suppression\EmailSuppressionServiceContract;
 use Condoedge\Communications\Services\Suppression\UnsubscribeLinkGenerator;
 use Condoedge\Communications\Tests\TestCase;
@@ -104,8 +105,13 @@ class EmailGroupUnsubscribeTest extends TestCase
         $this->dispatchSuppressible([new ConsentLocalisedGroupRecipient(['a@example.test', 'b@example.test'], 'fr')]);
 
         Mail::assertSentCount(2);
-        Mail::assertSent(fn ($mailable) => $mailable->locale === 'fr' && $mailable->hasTo('a@example.test'));
-        Mail::assertSent(fn ($mailable) => $mailable->locale === 'fr' && $mailable->hasTo('b@example.test'));
+
+        foreach (['a@example.test', 'b@example.test'] as $address) {
+            Mail::assertSent(
+                DefaultLayoutEmailCommunicable::class,
+                fn ($mailable) => $mailable->locale === 'fr' && $mailable->hasTo($address),
+            );
+        }
     }
 
     public function test_an_unsubscribed_member_is_dropped_and_the_rest_of_the_group_still_receives()

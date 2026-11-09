@@ -48,6 +48,10 @@ abstract class TestCase extends Orchestra
         Config::set('kompo-auth.load-migrations', true);
         Config::set('queue.default', 'sync');
         Config::set('mail.default', 'array');
+
+        // The unsubscribe link carries the address encrypted; without a key every suppressible
+        // send fails inside the handler and is recorded FAILED with nothing on the transport.
+        Config::set('app.key', 'base64:' . base64_encode(str_repeat('t', 32)));
     }
 
     protected function defineDatabaseMigrations(): void
