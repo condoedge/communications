@@ -38,6 +38,19 @@ enum CommunicationCategory: string
     }
 
     /**
+     * Whether a recipient may turn this trigger's email off. A trigger overrides the default
+     * (anything but TRANSACTIONAL) by declaring a static canBeTakenOff().
+     */
+    public static function canBeTakenOff(?string $trigger): bool
+    {
+        if ($trigger && method_exists($trigger, 'canBeTakenOff')) {
+            return (bool) $trigger::canBeTakenOff();
+        }
+
+        return self::forTrigger($trigger) !== self::TRANSACTIONAL;
+    }
+
+    /**
      * Probed with method_exists rather than an interface, matching how
      * CommunicationTemplateGroup::getValidCommTypesForTrigger() already probes `acceptsChannel`.
      *

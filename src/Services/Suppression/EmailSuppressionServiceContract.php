@@ -20,6 +20,14 @@ interface EmailSuppressionServiceContract
      */
     public function isSuppressed(string $email): bool;
 
+    /**
+     * Why each of these addresses is suppressed, in one read. Addresses that are not are absent.
+     *
+     * @param string[] $emails
+     * @return array<string, EmailSuppressionReason> keyed by normalized address
+     */
+    public function reasonsFor(array $emails): array;
+
     public function suppress(
         string $email,
         EmailSuppressionReason $reason = EmailSuppressionReason::USER_UNSUBSCRIBE,

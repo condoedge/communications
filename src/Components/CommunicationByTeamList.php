@@ -9,7 +9,7 @@ use Illuminate\Support\Collection;
 use Kompo\Auth\Facades\TeamModel;
 
 /**
- * Per-team rollup of the send log over the subtree (sent / failed), one row per owning team.
+ * Per-team rollup of the send log over the subtree, one row per owning team.
  * Team names are preloaded once to keep render() free of per-row lookups.
  */
 class CommunicationByTeamList extends WhiteTable
@@ -37,20 +37,35 @@ class CommunicationByTeamList extends WhiteTable
 
     public function headers()
     {
-        return [
+        return array_merge([
             _Th('communications.team'),
             _Th('communications.sent'),
             _Th('communications.failed'),
-        ];
+        ], $this->showsEngagement() ? [
+            _Th('communications.delivered'),
+            _Th('communications.opened'),
+            _Th('communications.clicked'),
+            _Th('communications.bounced'),
+        ] : []);
     }
 
     public function render(TeamStatsDto $row)
     {
-        return _TableRow(
+        return _TableRow(array_merge([
             _Html($this->teamLabel($row->teamId))->class('font-medium'),
             _Html((string) $row->sent),
             _Html((string) $row->failed)->class($row->failed > 0 ? 'text-danger' : ''),
-        );
+        ], $this->showsEngagement() ? [
+            _Html((string) $row->delivered),
+            _Html((string) $row->opened),
+            _Html((string) $row->clicked),
+            _Html((string) $row->bounced)->class($row->bounced > 0 ? 'text-danger' : ''),
+        ] : []));
+    }
+
+    protected function showsEngagement(): bool
+    {
+        return (bool) config('kompo-communications.engagement-stats');
     }
 
     protected function teamLabel(?int $teamId): string

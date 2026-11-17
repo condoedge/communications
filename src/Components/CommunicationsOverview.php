@@ -41,12 +41,22 @@ class CommunicationsOverview extends Form
 
     protected function statCards(StatsOverviewDto $stats)
     {
-        return _Flex(
+        return _Flex(array_merge([
             _MiniStatCard('communications.total-sent', $stats->totalSent, 'send-2', 'bg-greenmain'),
             _MiniStatCard('communications.failed', $stats->failed, 'danger', 'bg-danger'),
             _MiniStatCard('communications.last-30-days', $stats->last30d, 'calendar', 'bg-level1'),
             _MiniStatCard('communications.active-triggers', $stats->activeTriggers, 'flash', 'bg-positive'),
             _MiniStatCard('communications.disabled-triggers', $stats->disabledTriggers, 'slash', 'bg-warning'),
-        )->class('gap-4 flex-wrap');
+        ], config('kompo-communications.engagement-stats') ? $this->engagementCards($stats) : []))->class('gap-4 flex-wrap');
+    }
+
+    protected function engagementCards(StatsOverviewDto $stats): array
+    {
+        return [
+            _MiniStatCard('communications.delivered', $stats->delivered, 'tick-circle', 'bg-info'),
+            _MiniStatCard('communications.opened', $stats->opened, 'eye', 'bg-positive'),
+            _MiniStatCard('communications.clicked', $stats->clicked, 'mouse', 'bg-positive'),
+            _MiniStatCard('communications.bounced', $stats->bounced, 'undo', 'bg-danger'),
+        ];
     }
 }

@@ -6,9 +6,7 @@ use Condoedge\Communications\Services\Stats\Dto\StatsOverviewDto;
 use Illuminate\Support\Collection;
 
 /**
- * Read-side aggregates over the communication send log (header + per-recipient rows), scoped to
- * a team subtree. Metrics cover send-side outcomes only (sent / failed); engagement stats are not
- * reported because no provider webhook ingestion populates the columns they would read.
+ * Read-side aggregates over the communication send log, scoped to a team subtree.
  */
 interface CommunicationStatsServiceContract
 {

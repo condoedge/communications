@@ -260,21 +260,35 @@ class CommunicationTemplateGroup extends Model
             $clone->disabled = false;
             $clone->save();
 
-            foreach ($this->communicationTemplates as $template) {
-                $templateClone = $template->replicate();
-                $templateClone->template_group_id = $clone->id;
-                $templateClone->save();
-
-                NotificationTemplate::where('communication_id', $template->id)->get()
-                    ->each(function ($notificationTemplate) use ($templateClone) {
-                        $notificationClone = $notificationTemplate->replicate();
-                        $notificationClone->communication_id = $templateClone->id;
-                        $notificationClone->save();
-                    });
-            }
+            $this->copyTemplatesTo($clone);
 
             return $clone->refresh();
         });
+    }
+
+    /**
+     * Copies this group's templates to another group, each with its notification sidecar.
+     *
+     * @param int[] $exceptTypes channel values left out
+     */
+    public function copyTemplatesTo(self $group, array $exceptTypes = []): void
+    {
+        foreach ($this->communicationTemplates as $template) {
+            if (in_array($template->type?->value, $exceptTypes, true)) {
+                continue;
+            }
+
+            $templateClone = $template->replicate();
+            $templateClone->template_group_id = $group->id;
+            $templateClone->save();
+
+            NotificationTemplate::where('communication_id', $template->id)->get()
+                ->each(function ($notificationTemplate) use ($templateClone) {
+                    $notificationClone = $notificationTemplate->replicate();
+                    $notificationClone->communication_id = $templateClone->id;
+                    $notificationClone->save();
+                });
+        }
     }
 
     public function deletable()

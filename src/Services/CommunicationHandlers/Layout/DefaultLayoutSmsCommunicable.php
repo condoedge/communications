@@ -43,11 +43,16 @@ class DefaultLayoutSmsCommunicable extends Notification
      */
     public function toVonage(object $notifiable): VonageMessage
     {
+        return (new VonageMessage)->content($this->content());
+    }
+
+    /** The message as plain text, cut at the length a carrier still delivers whole. */
+    public function content(): string
+    {
         $plainText = $this->toPlainText($this->communication->getParsedContent($this->params));
 
         // Plain '...' rather than an ellipsis character, which alone would force the whole
         // message into UCS-2.
-        return (new VonageMessage)
-            ->content(mb_strimwidth($plainText, 0, static::MAX_CONTENT_LENGTH, '...'));
+        return mb_strimwidth($plainText, 0, static::MAX_CONTENT_LENGTH, '...');
     }
 }

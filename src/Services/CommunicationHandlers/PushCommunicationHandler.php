@@ -44,7 +44,7 @@ class PushCommunicationHandler extends AbstractCommunicationHandler
         }
 
         $sender = app(PushSenderContract::class);
-        $layout = $params['layout'] ?? DefaultLayoutPushCommunicable::class;
+        $layout = $this->layoutFrom($params, DefaultLayoutPushCommunicable::class);
 
         $this->sendEach($communicables, function ($communicable) use ($sender, $layout, $params) {
             $tokens = array_values(array_filter($communicable->getPushTokens()));
@@ -53,7 +53,7 @@ class PushCommunicationHandler extends AbstractCommunicationHandler
                 return 'no-push-device';
             }
 
-            $perRecipientParams = ContextEnhancer::setCommunicable($communicable)->getEnhancedContext($params);
+            $perRecipientParams = $this->paramsFor($communicable, $params);
             $perRecipientParams['push_route'] = $this->routeFor($perRecipientParams);
 
             $sender->send((new $layout($this->communication, $perRecipientParams))->toPush($tokens));

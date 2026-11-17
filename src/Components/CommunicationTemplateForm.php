@@ -3,13 +3,13 @@
 namespace Condoedge\Communications\Components;
 
 use Condoedge\Communications\Models\CommunicationTemplateGroup;
-use Condoedge\Communications\Models\CommunicationType;
 use Condoedge\Communications\Triggers\ManualTrigger;
-use Condoedge\Utils\Facades\GlobalConfig;
 use Condoedge\Utils\Kompo\Common\Modal;
 
 class CommunicationTemplateForm extends Modal
 {
+    use EditsCommunicationChannels;
+
     public $model = CommunicationTemplateGroup::class;
 
     protected $_Title = 'communications.manage-communication';
@@ -57,25 +57,29 @@ class CommunicationTemplateForm extends Modal
             ));
         }
     }
-    
+
     public function body()
     {
-        $channel = $this->defaultChannel($this->model->trigger);
-
         return _Rows(
             $this->mainFields(),
 
             !$this->showsChannels() ? _Rows(
                 _Html('communications.fill-main-data-help')->class('text-center mb-4'),
-            )  : _Panel(
-                $this->getFormsTypes(
-                    $channel->handler($this->model->findCommunicationTemplate($channel->value))->getForm($this->model->trigger, $this->context),
-                )
-            )->id('communication-type-form-container'),
+            )  : $this->channelsSection(),
 
             _SubmitButton($this->submitButtonMessage())->refresh('communications-list')
                 ->when($this->showsChannels(), fn($el) => $el->closeModal()),
         );
+    }
+
+    protected function channelsGroup(): CommunicationTemplateGroup
+    {
+        return $this->model;
+    }
+
+    protected function channelsContext(): array
+    {
+        return $this->context;
     }
 
     /**
@@ -124,106 +128,6 @@ class CommunicationTemplateForm extends Modal
         }
 
         return !$this->showsChannels() ? 'communication.next' : 'generic.save';
-    }
-
-    public function saveAndGetNewForm()
-    {
-        $communicationType = request('communication_type');
-        $trigger = request('trigger');
-        $previousCommunicationType = request('previous_communication_type');
-
-        if ($previousCommunicationType) {
-            $this->savePreviousCommunication($previousCommunicationType);
-        } else if (!$communicationType) { // If there is no previous communication type, we are probably coming from the trigger select, so we set a default
-            $communicationType = $this->defaultChannel($trigger ?? $this->model->trigger)->value;
-        }
-
-        if (!$communicationType) {
-            return _Html('communications.select-communication-type-to-edit')->class('text-center');
-        }
-
-        $oldCommunication = $this->model->findCommunicationTemplate($communicationType);
-
-        $communicationType = CommunicationType::from($communicationType);
-
-        return $communicationType->handler($oldCommunication)->getForm($trigger ?? $this->model->trigger, $this->context);
-    }
-
-    public function saveAndGetNewFormTypes()
-    {
-        $handler = $this->saveAndGetNewForm();
-
-        return $this->getFormsTypes($handler);
-    }
-
-    public function getFormsTypes($handler = null)
-    {
-        $trigger = $this->model->trigger ?? request('trigger');
-
-        return _Rows(
-            _ButtonGroup()->options(
-                    $this->channelsFor($trigger)
-                        ->mapWithKeys(fn($t) => [$t->value => $t->label()])
-                        ->all()
-                )
-                    ->optionClass('p-2 text-center')
-                    ->name('communication_type', false)
-                    ->default($this->defaultChannel($trigger)->value)
-                    ->selfPost('saveAndGetNewForm')
-                    ->withAllFormValues()
-                    ->inPanel('communication-type-form'),
-
-                _Panel(
-                    $handler
-                )->id(id: 'communication-type-form')->class('mb-6'),
-        );
-    }
-
-    protected function channelsFor($trigger)
-    {
-        return collect(CommunicationType::cases())
-            ->filter(fn($t) => static::offeredInEditor($t))
-            ->filter(fn($t) => !$trigger || !method_exists($trigger, 'acceptsChannel') || $trigger::acceptsChannel($t))
-            ->values();
-    }
-
-    /**
-     * Whether the editor offers this channel to whoever is looking. A channel that cannot send in
-     * this app is never offered. One being rolled out — listed in
-     * `kompo-communications.channels.restricted-editor` — stays with super admins until the host
-     * turns on `communications_channels.{channel}.public`.
-     *
-     * This hides the channel from the editor only: a template that already exists on a restricted
-     * channel is still dispatched to every recipient.
-     */
-    public static function offeredInEditor(CommunicationType $type): bool
-    {
-        if (!$type->sendable()) {
-            return false;
-        }
-
-        $restricted = in_array($type->configKey(), config('kompo-communications.channels.restricted-editor', []), true);
-
-        return (bool) GlobalConfig::get("communications_channels.{$type->configKey()}.public", !$restricted)
-            || (bool) isSuperAdmin();
-    }
-
-    /** EMAIL unless the trigger refuses it — a database-only trigger must not open on a form it cannot use. */
-    protected function defaultChannel($trigger): CommunicationType
-    {
-        $channels = $this->channelsFor($trigger);
-
-        return $channels->first(fn($t) => $t === CommunicationType::EMAIL) ?? $channels->first() ?? CommunicationType::EMAIL;
-    }
-
-    protected function savePreviousCommunication($communicationType)
-    {
-        if(!$communicationType) return null;
-
-        $oldCommunication = $this->model->findCommunicationTemplate($communicationType);
-
-        $previousCommunicationType = CommunicationType::from($communicationType);
-        $previousCommunicationType->handler($oldCommunication)->save( $this->model->id, request()->all());
     }
 
     public function rules()

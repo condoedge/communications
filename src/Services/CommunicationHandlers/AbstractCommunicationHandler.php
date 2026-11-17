@@ -3,10 +3,14 @@
 namespace Condoedge\Communications\Services\CommunicationHandlers;
 
 use Condoedge\Communications\EventsHandling\Contracts\CommunicableEvent;
+use Condoedge\Communications\Facades\ContextEnhancer;
 use Condoedge\Communications\Models\CommunicationSendingRecipientStatus;
 use Condoedge\Communications\Models\CommunicationTemplate;
 use Condoedge\Communications\Models\CommunicationType;
+use Condoedge\Communications\Recipients\RecipientOverride;
 use Condoedge\Communications\Services\CommunicationHandlers\Contracts\ChannelAware;
+use Condoedge\Communications\Services\Suppression\SuppressionContext;
+use Condoedge\Communications\Services\Suppression\SuppressionPipeline;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
@@ -15,6 +19,15 @@ abstract class AbstractCommunicationHandler
     protected CommunicationTemplate $communication;
     protected $type;
     protected DeliveryReport $report;
+
+    /** @var array<int, int> send log row id of each recipient, keyed by position */
+    protected array $recipientRowIds = [];
+
+    /** @var (callable(int, CommunicationSendingRecipientStatus, ?string): void)|null */
+    protected $onOutcome = null;
+
+    protected ?SuppressionPipeline $suppression = null;
+    protected ?SuppressionContext $suppressionContext = null;
 
     public function __construct(?CommunicationTemplate $communication, ?CommunicationType $type)
     {
@@ -45,6 +58,27 @@ abstract class AbstractCommunicationHandler
 
     // NOTIFICATION
 
+    /** @param array<int, int> $rowIdsByPosition */
+    public function forRecipientRows(array $rowIdsByPosition): static
+    {
+        $this->recipientRowIds = $rowIdsByPosition;
+
+        return $this;
+    }
+
+    /**
+     * Handle only the recipients that have a row, and hand each outcome to $onOutcome as it happens.
+     *
+     * @param array<int, int> $rowIdsByPosition
+     * @param callable(int, CommunicationSendingRecipientStatus, ?string): void $onOutcome
+     */
+    public function continuing(array $rowIdsByPosition, callable $onOutcome): static
+    {
+        $this->onOutcome = $onOutcome;
+
+        return $this->forRecipientRows($rowIdsByPosition);
+    }
+
     /**
      * The concrete implementation of the notification method to send the communication to the communicables
      * @param array<\Condoedge\Communications\Services\CommunicationHandlers\Contracts\Communicable> $communicables
@@ -69,12 +103,20 @@ abstract class AbstractCommunicationHandler
      */
     final public function notify(array|Collection $communicables, $params = []): DeliveryReport
     {
-        $this->report = new DeliveryReport;
+        $this->report = new DeliveryReport($this->onOutcome);
         $communicableInterface = $this->communicableInterface();
 
         // values() first so positions are 0..n-1, matching the rows CommunicationSending wrote.
+        $communicables = collect($communicables)->values();
+
+        $this->suppression()->prime($this->suppressionContext(), $communicables->all());
+
         // filter() preserves keys, so the surviving entries keep their original position.
-        $communicables = collect($communicables)->values()->filter(function ($c, $position) use ($communicableInterface) {
+        $communicables = $communicables->filter(function ($c, $position) use ($communicableInterface) {
+            if ($this->onOutcome && !isset($this->recipientRowIds[$position])) {
+                return false;
+            }
+
             if (!($c instanceof $communicableInterface)) {
                 Log::warning('Communicable does not implement the required interface: ' . $communicableInterface);
                 $this->report->skipped($position, 'does-not-implement-' . class_basename($communicableInterface));
@@ -110,22 +152,33 @@ abstract class AbstractCommunicationHandler
      */
     protected function suppressionReasonFor($communicable): ?string
     {
-        return null;
+        return $this->suppression()->reasonFor($this->suppressionContext(), $communicable);
+    }
+
+    /** One pipeline per handler, so what its rules loaded lives for one send only. */
+    protected function suppression(): SuppressionPipeline
+    {
+        return $this->suppression ??= app(SuppressionPipeline::class);
+    }
+
+    protected function suppressionContext(): SuppressionContext
+    {
+        return $this->suppressionContext ??= new SuppressionContext(
+            $this->communicableInterface(),
+            $this->communication->group?->trigger,
+        );
     }
 
     /**
-     * Deliver to each recipient in isolation: one failure is recorded against that recipient only
-     * and the rest of the list still goes out. Without this a throw partway through abandons every
-     * remaining recipient while the already-delivered ones get marked failed.
-     *
-     * The callback returns null when it delivered, or a short reason string when it chose not to
-     * (no phone number, opted out). $communicables must keep its original positional keys.
+     * Deliver to each recipient in isolation: a failure is recorded against that recipient only and
+     * the rest still goes out. The callback receives the recipient and its position, and returns null
+     * when it delivered or a short reason when it chose not to. $communicables must keep its keys.
      */
     protected function sendEach(array $communicables, callable $send): void
     {
         foreach ($communicables as $position => $communicable) {
             try {
-                $skipReason = self::withRecipientLocale($communicable, fn () => $send($communicable));
+                $skipReason = self::withRecipientLocale($communicable, fn () => $send($communicable, $position));
 
                 $skipReason === null
                     ? $this->report->sent($position)
@@ -142,12 +195,32 @@ abstract class AbstractCommunicationHandler
         }
     }
 
+    /** The context of one recipient's message: the send's params, then the recipient's own on top. */
+    protected function paramsFor($communicable, array $params): array
+    {
+        $own = $communicable instanceof RecipientOverride ? $communicable->params() : [];
+
+        return ContextEnhancer::setCommunicable($communicable)->getEnhancedContext(array_merge($params, $own));
+    }
+
     /** Record one status for every listed recipient, for channels that cannot report per recipient. */
     protected function reportAll(array $communicables, CommunicationSendingRecipientStatus $status, ?string $detail = null): void
     {
         foreach (array_keys($communicables) as $position) {
             $this->report->record($position, $status, $detail);
         }
+    }
+
+    /** The `layout` param is one class for every channel, or one class per channel under the channel's config key. */
+    protected function layoutFrom(array $params, string $default): string
+    {
+        $layout = $params['layout'] ?? null;
+
+        if (is_array($layout)) {
+            $layout = $layout[$this->type?->configKey()] ?? null;
+        }
+
+        return $layout ?: $default;
     }
 
     // COMMUNICATION SAVING
@@ -190,10 +263,10 @@ abstract class AbstractCommunicationHandler
         ];
     }
 
-    /** The variables the editor offers. A channel may add its own on top of the trigger's. */
+    /** The variables the editor offers: the trigger's, which may differ per channel. */
     protected function editorVariableIds($trigger, $context): ?array
     {
-        return $trigger::validVariablesIds(context: $context);
+        return $trigger::validVariablesIds(context: ($context ?: []) + ['channel' => $this->type?->value]);
     }
 
     /**

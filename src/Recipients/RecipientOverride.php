@@ -80,6 +80,23 @@ class RecipientOverride implements
     }
 
     /**
+     * Params of this recipient's own message, which win over the send's params of the same name.
+     *
+     * @param array<string, mixed> $params
+     */
+    public function withParams(array $params): self
+    {
+        $this->overrides['params'] = $params;
+        return $this;
+    }
+
+    /** @return array<string, mixed> */
+    public function params(): array
+    {
+        return $this->overrides['params'] ?? [];
+    }
+
+    /**
      * Restrict the recipient to the given channel interfaces.
      *
      * @param array<int, class-string> $interfaces

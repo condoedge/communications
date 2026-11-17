@@ -9,8 +9,7 @@ use Condoedge\Utils\Kompo\Common\WhiteTable;
 use Illuminate\Support\Collection;
 
 /**
- * Per-trigger rollup of the send log over the team subtree (sent / failed). Source is the stats
- * service collection, one row per trigger seen in the scoped log.
+ * Per-trigger rollup of the send log over the team subtree, one row per trigger seen in the log.
  */
 class CommunicationByTriggerList extends WhiteTable
 {
@@ -32,19 +31,34 @@ class CommunicationByTriggerList extends WhiteTable
 
     public function headers()
     {
-        return [
+        return array_merge([
             _Th('communications.trigger'),
             _Th('communications.sent'),
             _Th('communications.failed'),
-        ];
+        ], $this->showsEngagement() ? [
+            _Th('communications.delivered'),
+            _Th('communications.opened'),
+            _Th('communications.clicked'),
+            _Th('communications.bounced'),
+        ] : []);
     }
 
     public function render(TriggerStatsDto $row)
     {
-        return _TableRow(
+        return _TableRow(array_merge([
             _Html(CommunicationTemplateGroup::triggerName($row->trigger))->class('font-medium'),
             _Html((string) $row->sent),
             _Html((string) $row->failed)->class($row->failed > 0 ? 'text-danger' : ''),
-        );
+        ], $this->showsEngagement() ? [
+            _Html((string) $row->delivered),
+            _Html((string) $row->opened),
+            _Html((string) $row->clicked),
+            _Html((string) $row->bounced)->class($row->bounced > 0 ? 'text-danger' : ''),
+        ] : []));
+    }
+
+    protected function showsEngagement(): bool
+    {
+        return (bool) config('kompo-communications.engagement-stats');
     }
 }

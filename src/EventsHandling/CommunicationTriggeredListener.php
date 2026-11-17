@@ -22,6 +22,9 @@ class CommunicationTriggeredListener implements ShouldQueue
 
     public $deleteWhenMissingModels = true;
 
+    /** An event raised inside a transaction is queued once it commits, so the worker finds the rows the event names. */
+    public $afterCommit = true;
+
     /**
      * Window an event with an explicit getIdempotencyKey() stays deduplicated for. Only events that
      * opt in get a long window: they alone know that two fires mean the same business fact.
@@ -39,6 +42,25 @@ class CommunicationTriggeredListener implements ShouldQueue
     protected ?string $idempotencyKey = null;
 
     protected ?string $claimOwner = null;
+
+    /** The queue reads these two as properties of a listener it builds without its constructor, so they are answered from the config. */
+    protected const QUEUE_OPTIONS = ['tries', 'timeout'];
+
+    public function __isset($name)
+    {
+        return $this->__get($name) !== null;
+    }
+
+    public function __get($name)
+    {
+        return in_array($name, self::QUEUE_OPTIONS, true) ? config('kompo-communications.queue.' . $name) : null;
+    }
+
+    /** @return int|int[]|null seconds before each new attempt */
+    public function backoff()
+    {
+        return config('kompo-communications.queue.backoff');
+    }
 
     /**
      * Route a fired trigger to its team(s) and send through the EffectiveTemplateResolver.
@@ -128,7 +150,9 @@ class CommunicationTriggeredListener implements ShouldQueue
     }
 
     /**
-     * Original manual-send path: notify the explicitly chosen (valid) groups with all communicables.
+     * Notify the explicitly chosen (valid) groups with all communicables. Deduplicated only when the
+     * event declares its own idempotency key, which its sendings then keep: the cache claim stops
+     * two runs at once, the sendings stop a later run from reaching anyone a second time.
      */
     protected function handleManual(CommunicableEvent $event): void
     {
@@ -145,6 +169,37 @@ class CommunicationTriggeredListener implements ShouldQueue
             return;
         }
 
+        if ($this->hasExplicitIdempotencyKey($event)) {
+            $this->idempotencyKey = $this->idempotencyKeyFor($event, collect());
+
+            if (!$this->claimIdempotencyKey($this->idempotencyKey, $event)) {
+                Log::info('Skipping duplicate communication dispatch', [
+                    'event' => get_class($event),
+                    'key' => $this->idempotencyKey,
+                ]);
+
+                return;
+            }
+        }
+
+        try {
+            $this->notifyGroups($groups, $event);
+        } catch (\Throwable $e) {
+            $this->releaseIdempotencyKey();
+
+            throw $e;
+        }
+    }
+
+    protected function hasExplicitIdempotencyKey(CommunicableEvent $event): bool
+    {
+        $raw = method_exists($event, 'getIdempotencyKey') ? $event->getIdempotencyKey() : null;
+
+        return is_scalar($raw) && (string) $raw !== '';
+    }
+
+    protected function notifyGroups(Collection $groups, CommunicableEvent $event): void
+    {
         // The manual path has no per-recipient team resolution, so stamp each send with its group's
         // own team — that is the sending team — so it shows in that team's send log / overview.
         $groups->each(function ($group) use ($event) {
@@ -162,6 +217,7 @@ class CommunicationTriggeredListener implements ShouldQueue
                 'team_id' => $group->team_id,
                 'communication_teams' => $teams,
                 'teams_ids' => $teams,
+                'idempotency_key' => $this->idempotencyKey,
             ]))->getEnhancedContext();
 
             $group->notify($event->getCommunicables(), null, $params);

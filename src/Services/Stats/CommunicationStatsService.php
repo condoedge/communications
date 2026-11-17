@@ -14,18 +14,9 @@ use Illuminate\Support\Facades\DB;
 use Kompo\Auth\Teams\Contracts\TeamHierarchyInterface;
 
 /**
- * Aggregates the per-recipient send log over a team subtree.
- *
- * Every metric is a conditional aggregate over communication_sending_recipients. A recipient's teams
- * live in the communication_sending_recipient_teams pivot, so a send relevant to several teams is
- * counted once for totals (scoped via EXISTS) but appears under each team in the per-team breakdown
- * (a pivot join).
- *
- * Only send-side outcomes are reported (sent / failed / pending). The engagement columns
- * (opened_at, clicked_at, delivered_at, bounced_at, provider_*) exist on the table but nothing in
- * this package writes them — there is no provider webhook ingestion — so aggregating them would
- * report a structural zero as if it were a measurement. Reinstate those metrics together with the
- * ingestion that populates the columns.
+ * Aggregates the per-recipient send log over a team subtree. A send recorded against several teams
+ * counts once in totals and under each team in the per-team breakdown. Deliveries, opens, clicks and
+ * bounces are counted on their own timestamps, not on the status: a clicked row was also opened.
  */
 class CommunicationStatsService implements CommunicationStatsServiceContract
 {
@@ -50,6 +41,7 @@ class CommunicationStatsService implements CommunicationStatsServiceContract
         $row = $this->scopedRecipients($expanded)
             ->selectRaw($this->sentExpr() . ' as sent_count')
             ->selectRaw($this->failedExpr() . ' as failed_count')
+            ->selectRaw($this->engagementSelect())
             ->selectRaw('SUM(CASE WHEN ' . self::RECIPIENTS . '.sent_at IS NOT NULL AND ' . self::RECIPIENTS . '.sent_at >= ? THEN 1 ELSE 0 END) as last30d_count', [now()->subDays(30)])
             ->first();
 
@@ -62,6 +54,10 @@ class CommunicationStatsService implements CommunicationStatsServiceContract
             last30d: (int) ($row->last30d_count ?? 0),
             activeTriggers: $active,
             disabledTriggers: $disabled,
+            delivered: (int) ($row->delivered_count ?? 0),
+            opened: (int) ($row->opened_count ?? 0),
+            clicked: (int) ($row->clicked_count ?? 0),
+            bounced: (int) ($row->bounced_count ?? 0),
         );
     }
 
@@ -79,11 +75,16 @@ class CommunicationStatsService implements CommunicationStatsServiceContract
             ->selectRaw('`' . self::SENDINGS . '`.`trigger` as `trigger`')
             ->selectRaw($this->sentExpr() . ' as sent_count')
             ->selectRaw($this->failedExpr() . ' as failed_count')
+            ->selectRaw($this->engagementSelect())
             ->get()
             ->map(fn ($r) => new TriggerStatsDto(
                 trigger: (string) $r->trigger,
                 sent: (int) $r->sent_count,
                 failed: (int) $r->failed_count,
+                delivered: (int) $r->delivered_count,
+                opened: (int) $r->opened_count,
+                clicked: (int) $r->clicked_count,
+                bounced: (int) $r->bounced_count,
             ))
             ->values();
     }
@@ -106,11 +107,16 @@ class CommunicationStatsService implements CommunicationStatsServiceContract
             ->selectRaw(self::PIVOT . '.team_id as team_id')
             ->selectRaw($this->sentExpr() . ' as sent_count')
             ->selectRaw($this->failedExpr() . ' as failed_count')
+            ->selectRaw($this->engagementSelect())
             ->get()
             ->map(fn ($r) => new TeamStatsDto(
                 teamId: (int) $r->team_id,
                 sent: (int) $r->sent_count,
                 failed: (int) $r->failed_count,
+                delivered: (int) $r->delivered_count,
+                opened: (int) $r->opened_count,
+                clicked: (int) $r->clicked_count,
+                bounced: (int) $r->bounced_count,
             ))
             ->values();
     }
@@ -156,6 +162,13 @@ class CommunicationStatsService implements CommunicationStatsServiceContract
     {
         // Interpolated, not bound: the only variable part is an int-backed enum case, never input.
         return 'SUM(CASE WHEN ' . self::RECIPIENTS . '.status = ' . (int) CommunicationSendingRecipientStatus::FAILED->value . ' THEN 1 ELSE 0 END)';
+    }
+
+    protected function engagementSelect(): string
+    {
+        return collect(['delivered', 'opened', 'clicked', 'bounced'])
+            ->map(fn ($metric) => 'SUM(CASE WHEN ' . self::RECIPIENTS . '.' . $metric . '_at IS NOT NULL THEN 1 ELSE 0 END) as ' . $metric . '_count')
+            ->implode(', ');
     }
 
     /**

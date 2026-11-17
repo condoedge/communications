@@ -43,7 +43,89 @@ class CommunicationSending extends Model
      */
     protected array $recipientRowIds = [];
 
+    /** @return array<int, int> */
+    public function recipientRowIds(): array
+    {
+        return $this->recipientRowIds;
+    }
+
     // ACTIONS
+
+    /** The sending already made for this template and key, which the same key handled again continues. */
+    public static function madeFor(CommunicationTemplate $communicationTemplate, string $idempotencyKey): ?static
+    {
+        return static::withTrashed()
+            ->where('idempotency_key', $idempotencyKey)
+            ->where('communication_template_id', $communicationTemplate->id)
+            ->first();
+    }
+
+    /**
+     * Pair each of these communicables with the row of this sending that still waits for it, and
+     * keep the pairs as this instance's row ids. A communicable without a waiting row gets none.
+     *
+     * @return array<int, int> row id by the communicable's position in $communicables
+     */
+    public function claimPendingRows(array|Collection $communicables): array
+    {
+        $waiting = $this->recipients()->toBase()
+            ->where('status', CommunicationSendingRecipientStatus::PENDING->value)
+            ->orderBy('position')
+            ->get(['id', 'recipient_type', 'recipient_id', 'email'])
+            ->groupBy(fn ($row) => implode('|', [$row->recipient_type, $row->recipient_id, $row->email]));
+
+        $this->recipientRowIds = [];
+
+        foreach (collect($communicables)->values() as $position => $communicable) {
+            $row = $waiting->get(implode('|', static::identityColumns($communicable)))?->shift();
+
+            if ($row) {
+                $this->recipientRowIds[$position] = $row->id;
+            }
+        }
+
+        return $this->recipientRowIds;
+    }
+
+    /** Write one recipient's outcome on its row as it happens, so a send that stops midway knows who it reached. */
+    public function recordOutcome(int $position, CommunicationSendingRecipientStatus $status, ?string $error = null): void
+    {
+        if (!($rowId = $this->recipientRowIds[$position] ?? null)) {
+            return;
+        }
+
+        try {
+            $this->recipients()->whereKey($rowId)->update([
+                'status' => $status->value,
+                'sent_at' => $status === CommunicationSendingRecipientStatus::SENT ? now() : null,
+                'error_message' => $error,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Could not record a recipient outcome as it happened', [
+                'communication_sending_id' => $this->id,
+                'exception' => $e,
+            ]);
+        }
+    }
+
+    /** Set the status from every row of the sending, for one that was sent over more than one run. */
+    public function deriveStatusFromRows(): void
+    {
+        $sent = $this->recipients()->whereNotNull('sent_at')->count();
+        $failed = $this->recipients()->where('status', CommunicationSendingRecipientStatus::FAILED->value)->count();
+        $pending = $this->recipients()->where('status', CommunicationSendingRecipientStatus::PENDING->value)->count();
+
+        $this->status = match (true) {
+            $sent > 0 && $failed > 0 => CommunicationSendingStatus::PARTIAL,
+            $sent > 0 => CommunicationSendingStatus::SENT,
+            $failed > 0 => CommunicationSendingStatus::FAILED,
+            $pending > 0 => CommunicationSendingStatus::PENDING,
+            default => CommunicationSendingStatus::SKIPPED,
+        };
+
+        $this->sent_at = $sent > 0 ? ($this->sent_at ?: now()) : null;
+    }
+
     public static function createOneForCommunicationTemplate(CommunicationTemplate $communicationTemplate, array|Collection $communicables, array $params = [])
     {
         $communicables = collect($communicables)->values();
@@ -60,6 +142,7 @@ class CommunicationSending extends Model
             $communicationSending->trigger = $communicationTemplate->group?->trigger;
             $communicationSending->channel = $communicationTemplate->type?->value;
             $communicationSending->recipients_count = $communicables->count();
+            $communicationSending->idempotency_key = $params['idempotency_key'] ?? null;
             $communicationSending->save();
 
             $communicationSending->writeRecipientRows($communicables, $communicationTeams, $paramsTeamId);
@@ -96,12 +179,7 @@ class CommunicationSending extends Model
                     'position' => $position,
                     'status' => CommunicationSendingRecipientStatus::PENDING->value,
                     'name' => secureCallCb(fn () => (string) $communicable->label()) ?: null,
-                    // Maybe it should be more abstract and just call a generic method that fills a "contact_info" field. This is something pending to change
-                    'email' => secureCallCb(fn () => static::loggedAddressFor($communicable)),
-                    // getMorphClass(), as associate() did: the host's morph map alias, never the class name.
-                    'recipient_type' => $identity instanceof EloquentModel ? $identity->getMorphClass() : null,
-                    'recipient_id' => $identity instanceof EloquentModel ? $identity->getKey() : null,
-                ];
+                ] + static::identityColumns($communicable);
 
                 $teamsByPosition[$position] = $this->teamsForRecipient($identity, $communicationTeams, $templateTeamId);
             }
@@ -122,6 +200,23 @@ class CommunicationSending extends Model
         foreach (array_chunk($pivot, static::INSERT_BATCH) as $batch) {
             DB::table('communication_sending_recipient_teams')->insert($batch);
         }
+    }
+
+    /**
+     * Who a recipient row is for: the model behind the communicable and the address logged for it.
+     *
+     * @return array{recipient_type: ?string, recipient_id: mixed, email: ?string}
+     */
+    protected static function identityColumns($communicable): array
+    {
+        $identity = static::unwrapRecipient($communicable);
+
+        return [
+            // getMorphClass(): the host's morph map alias, never the class name.
+            'recipient_type' => $identity instanceof EloquentModel ? $identity->getMorphClass() : null,
+            'recipient_id' => $identity instanceof EloquentModel ? $identity->getKey() : null,
+            'email' => secureCallCb(fn () => static::loggedAddressFor($communicable)),
+        ];
     }
 
     protected static function loggedAddressFor($communicable): ?string
@@ -249,11 +344,14 @@ class CommunicationSending extends Model
 
     /**
      * The send died before any per-recipient outcome could be reported (the handler threw as a
-     * whole, or bookkeeping failed). Nothing is known to have been delivered.
+     * whole, or bookkeeping failed). Nothing is known to have been delivered, except on a keyed
+     * sending, whose rows already hold the outcomes recorded one by one: only its pending rows fail.
      */
     public function markAllRecipientsFailed(?string $error = null): void
     {
-        $this->recipients()->update([
+        $this->recipients()
+            ->when($this->idempotency_key, fn ($q) => $q->where('status', CommunicationSendingRecipientStatus::PENDING->value))
+            ->update([
             'status' => CommunicationSendingRecipientStatus::FAILED->value,
             // Cleared explicitly: an earlier partial apply may already have stamped some rows, and
             // the stats count sent_at rather than status, so a leftover timestamp reads as delivered.

@@ -21,6 +21,11 @@ class DeliveryReport
     /** @var array<int, array{status: Status, error: ?string}> */
     protected array $outcomes = [];
 
+    /** @param (callable(int, Status, ?string): void)|null $onOutcome told of each outcome as it is recorded */
+    public function __construct(protected $onOutcome = null)
+    {
+    }
+
     public function sent(int $position): void
     {
         $this->record($position, Status::SENT);
@@ -43,6 +48,10 @@ class DeliveryReport
             'status' => $status,
             'error' => $error === null ? null : mb_substr($error, 0, 1000),
         ];
+
+        if ($this->onOutcome) {
+            ($this->onOutcome)($position, $status, $this->outcomes[$position]['error']);
+        }
     }
 
     /** @return array<int, array{status: Status, error: ?string}> */

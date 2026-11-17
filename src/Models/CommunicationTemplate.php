@@ -3,6 +3,7 @@
 namespace Condoedge\Communications\Models;
 
 use Condoedge\Communications\Facades\ContentReplacer;
+use Condoedge\Communications\Recipients\EmailGroup;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -73,6 +74,9 @@ class CommunicationTemplate extends Model
      * been delivered, so letting it propagate is safe and lets the queue retry. Once delivery has
      * begun the opposite holds — the recipients already reached cannot be un-sent, so a handler
      * failure is recorded and logged rather than rethrown into a duplicate-producing retry.
+     *
+     * A send given an `idempotency_key` has one sending per key: handled again, it reaches only
+     * the recipients whose row is still pending, and each row is written as its recipient is reached.
      */
     public function notify(array|Collection $communicables, $params = []): ?CommunicationSending
     {
@@ -93,12 +97,36 @@ class CommunicationTemplate extends Model
             return null;
         }
 
-        $communicationSending = CommunicationSending::createOneForCommunicationTemplate($this, $communicables, $params);
+        EmailGroup::preload($communicables);
+
+        // A send the caller marks as unrecorded, such as a test to oneself, is delivered and leaves
+        // no row for a log or a statistic to count.
+        if (!empty($params['unrecorded'])) {
+            $this->getHandler()->notify($communicables, $params);
+
+            return null;
+        }
+
+        $idempotencyKey = $params['idempotency_key'] ?? null;
+        $communicationSending = $idempotencyKey ? CommunicationSending::madeFor($this, $idempotencyKey) : null;
+
+        if ($communicationSending && !$communicationSending->claimPendingRows($communicables)) {
+            $communicationSending->deriveStatusFromRows();
+            $communicationSending->save();
+
+            return $communicationSending;
+        }
+
+        $communicationSending ??= CommunicationSending::createOneForCommunicationTemplate($this, $communicables, $params);
 
         $report = null;
 
         try {
-            $report = $this->getHandler()->notify($communicables, $params);
+            $handler = $idempotencyKey
+                ? $this->getHandler()->continuing($communicationSending->recipientRowIds(), $communicationSending->recordOutcome(...))
+                : $this->getHandler()->forRecipientRows($communicationSending->recipientRowIds());
+
+            $report = $handler->notify($communicables, $params);
         } catch (\Throwable $e) {
             Log::error('Error sending communication: ' . $e->getMessage(), [
                 'communication_id' => $this->id,
@@ -116,6 +144,10 @@ class CommunicationTemplate extends Model
             $report
                 ? $communicationSending->applyDeliveryReport($report)
                 : $communicationSending->markAllRecipientsFailed($communicationSending->error_message);
+
+            if ($idempotencyKey) {
+                $communicationSending->deriveStatusFromRows();
+            }
 
             $communicationSending->save();
         } catch (\Throwable $e) {

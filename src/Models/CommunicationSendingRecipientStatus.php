@@ -16,15 +16,17 @@ enum CommunicationSendingRecipientStatus: int
     case SKIPPED = 8;
 
     /**
-     * The statuses this package can actually set. The engagement cases below are kept for host apps
-     * and for a future provider-webhook integration, but nothing here writes them — offering them as
-     * filters would advertise a query that can never match a row.
+     * The statuses a row can hold: the engagement ones only for a host that records them.
      *
      * @return self[]
      */
     public static function writableCases(): array
     {
-        return [self::PENDING, self::SENT, self::FAILED, self::SKIPPED];
+        $cases = [self::PENDING, self::SENT, self::FAILED, self::SKIPPED];
+
+        return config('kompo-communications.engagement-stats')
+            ? [...$cases, self::DELIVERED, self::OPENED, self::CLICKED, self::BOUNCED]
+            : $cases;
     }
 
     /** Filter options limited to writableCases(): value => label. */
