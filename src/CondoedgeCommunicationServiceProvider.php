@@ -125,6 +125,11 @@ class CondoedgeCommunicationServiceProvider extends ServiceProvider
             \Condoedge\Communications\Services\Stats\CommunicationStatsService::class
         );
 
+        $this->app->bind(
+            \Condoedge\Communications\Services\Preferences\CommunicationPreferenceServiceContract::class,
+            \Condoedge\Communications\Services\Preferences\CommunicationPreferenceService::class
+        );
+
         // No trigger grouping by default — the admin Templates tab hides the group column + filter.
         // A host app binds its own adapter over its domain grouping.
         $this->app->bind(

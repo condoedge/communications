@@ -3,6 +3,7 @@
 namespace Condoedge\Communications\Models;
 
 use Condoedge\Communications\Facades\ContentReplacer;
+use Condoedge\Communications\Recipients\EmailGroup;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -92,6 +93,8 @@ class CommunicationTemplate extends Model
         if ($communicables->isEmpty()) {
             return null;
         }
+
+        EmailGroup::preload($communicables);
 
         $communicationSending = CommunicationSending::createOneForCommunicationTemplate($this, $communicables, $params);
 

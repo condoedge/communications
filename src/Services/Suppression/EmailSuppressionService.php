@@ -12,23 +12,33 @@ class EmailSuppressionService implements EmailSuppressionServiceContract
      * send. A process-wide cache would keep skipping someone for hours after they resubscribed,
      * because a queue worker never reaches request termination to flush it.
      *
-     * @var array<string, bool>
+     * @var array<string, EmailSuppressionReason|null>
      */
     protected array $memo = [];
 
     public function isSuppressed(string $email): bool
     {
-        $email = CommunicationEmailSuppression::normalizeEmail($email);
+        return $this->reasonsFor([$email]) !== [];
+    }
 
-        if ($email === '') {
-            return false;
+    public function reasonsFor(array $emails): array
+    {
+        $emails = array_values(array_unique(array_filter(array_map(CommunicationEmailSuppression::normalizeEmail(...), $emails))));
+
+        $unknown = array_values(array_filter($emails, fn (string $email) => !array_key_exists($email, $this->memo)));
+
+        foreach (array_chunk($unknown, 1000) as $chunk) {
+            $this->memo += array_fill_keys($chunk, null);
+
+            CommunicationEmailSuppression::query()
+                ->whereIn('email', $chunk)
+                ->global()
+                ->active()
+                ->get(['email', 'reason'])
+                ->each(fn ($row) => $this->memo[CommunicationEmailSuppression::normalizeEmail($row->email)] = $row->reason);
         }
 
-        return $this->memo[$email] ??= CommunicationEmailSuppression::query()
-            ->forEmail($email)
-            ->global()
-            ->active()
-            ->exists();
+        return array_filter(array_intersect_key($this->memo, array_flip($emails)));
     }
 
     public function suppress(

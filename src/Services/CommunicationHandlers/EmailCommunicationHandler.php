@@ -10,14 +10,11 @@ use Condoedge\Communications\Models\CommunicationCategory;
 use Condoedge\Communications\Services\CommunicationHandlers\Contracts\EmailCommunicable;
 use Condoedge\Communications\Services\CommunicationHandlers\AbstractCommunicationHandler;
 use Condoedge\Communications\Services\CommunicationHandlers\Layout\DefaultLayoutEmailCommunicable;
-use Condoedge\Communications\Services\Suppression\EmailSuppressionServiceContract;
 use Condoedge\Communications\Services\Suppression\UnsubscribeLinkGenerator;
 
 
 class EmailCommunicationHandler extends AbstractCommunicationHandler
 {
-    protected ?EmailSuppressionServiceContract $suppressions = null;
-
     public function communicableInterface()
     {
         return EmailCommunicable::class;
@@ -41,43 +38,30 @@ class EmailCommunicationHandler extends AbstractCommunicationHandler
 
     // SUPPRESSION
 
-    /**
-     * Drop recipients who withdrew consent, unless this send is transactional. The category comes
-     * from the template group, not $params: params only carry the trigger on the dispatch path.
-     */
+    /** Skip a recipient only when the rules stop every one of their addresses. */
     protected function suppressionReasonFor($communicable): ?string
     {
-        if (!$this->category()->isSuppressible()) {
-            return null;
-        }
+        // A group's getEmail() is the joined list, which matches no address-level rule: ask per member.
+        $addresses = secureCallCb(fn () => EmailGroup::addressesToReach($communicable)) ?? [];
 
-        // A group's getEmail() is the joined list, which matches no suppression row: ask per member.
-        $addresses = EmailGroup::isGroup($communicable)
-            ? (secureCallCb(fn () => EmailGroup::addressesOf($communicable)) ?? [])
-            : array_filter([secureCallCb(fn () => $communicable->getEmail())]);
-
-        if ($addresses === []) {
-            return null; // no address to match; the sender reports 'no-email-address' downstream
-        }
+        $reason = null; // none to match; the sender reports 'no-email-address' downstream
 
         foreach ($addresses as $address) {
-            if (!$this->suppressions()->isSuppressed($address)) {
+            $addressReason = $this->suppression()->reasonFor($this->suppressionContext(), $communicable, $address);
+
+            if (!$addressReason) {
                 return null; // someone may still receive it; deliverableAddresses() drops the rest
             }
+
+            $reason ??= $addressReason;
         }
 
-        return 'unsubscribed';
+        return $reason;
     }
 
     protected function category(): CommunicationCategory
     {
-        return CommunicationCategory::forTrigger($this->communication->group?->trigger);
-    }
-
-    /** Resolved once per handler, so one send does not re-resolve the service per recipient. */
-    protected function suppressions(): EmailSuppressionServiceContract
-    {
-        return $this->suppressions ??= app(EmailSuppressionServiceContract::class);
+        return $this->suppressionContext()->category;
     }
 
     /**
@@ -163,20 +147,14 @@ class EmailCommunicationHandler extends AbstractCommunicationHandler
     /** @return string[] */
     protected function deliverableAddresses($communicable): array
     {
-        if (!EmailGroup::isGroup($communicable)) {
-            $address = $communicable->getEmail();
-
-            return $address && filter_var($address, FILTER_VALIDATE_EMAIL) !== false ? [$address] : [];
-        }
-
-        $declared = EmailGroup::addressesOf($communicable);
+        $declared = EmailGroup::addressesToReach($communicable);
 
         $deliverable = array_values(array_filter(
             $declared,
             fn (string $address) => filter_var($address, FILTER_VALIDATE_EMAIL) !== false,
         ));
 
-        if (count($deliverable) !== count($declared)) {
+        if (EmailGroup::isGroup($communicable) && count($deliverable) !== count($declared)) {
             Log::warning('Dropped undeliverable addresses from a grouped email recipient', [
                 'communication_id' => $this->communication->id,
                 'recipient' => get_class($communicable),
@@ -185,14 +163,10 @@ class EmailCommunicationHandler extends AbstractCommunicationHandler
             ]);
         }
 
-        if (!$this->category()->isSuppressible()) {
-            return $deliverable;
-        }
-
-        // Consent withdrawn by some members only: not logged, the rest of the group still receives.
+        // Stopped for some addresses only: not logged, the rest still receive.
         return array_values(array_filter(
             $deliverable,
-            fn (string $address) => !$this->suppressions()->isSuppressed($address),
+            fn (string $address) => !$this->suppression()->reasonFor($this->suppressionContext(), $communicable, $address),
         ));
     }
 }

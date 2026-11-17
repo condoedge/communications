@@ -34,6 +34,16 @@ return [
         'categories' => ['notification', 'marketing'],
     ],
 
+    // SuppressionRule classes every send runs, in order; the first one that objects decides.
+    'suppression' => [
+        'rules' => \Condoedge\Communications\Services\Suppression\SuppressionPipeline::DEFAULT_RULES,
+    ],
+
+    // Off, what an address chose to receive is not consulted and every send goes as if nothing was chosen.
+    'address-preferences' => [
+        'enabled' => true,
+    ],
+
     'channels' => [
         // Editor only: templates that exist on a restricted channel are still sent.
         'restricted-editor' => ['push'],
