@@ -7,6 +7,8 @@ use Condoedge\Communications\Models\CommunicationSendingRecipientStatus;
 use Condoedge\Communications\Models\CommunicationTemplate;
 use Condoedge\Communications\Models\CommunicationType;
 use Condoedge\Communications\Services\CommunicationHandlers\Contracts\ChannelAware;
+use Condoedge\Communications\Services\Suppression\SuppressionContext;
+use Condoedge\Communications\Services\Suppression\SuppressionPipeline;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
@@ -15,6 +17,9 @@ abstract class AbstractCommunicationHandler
     protected CommunicationTemplate $communication;
     protected $type;
     protected DeliveryReport $report;
+
+    protected ?SuppressionPipeline $suppression = null;
+    protected ?SuppressionContext $suppressionContext = null;
 
     public function __construct(?CommunicationTemplate $communication, ?CommunicationType $type)
     {
@@ -73,8 +78,12 @@ abstract class AbstractCommunicationHandler
         $communicableInterface = $this->communicableInterface();
 
         // values() first so positions are 0..n-1, matching the rows CommunicationSending wrote.
+        $communicables = collect($communicables)->values();
+
+        $this->suppression()->prime($this->suppressionContext(), $communicables->all());
+
         // filter() preserves keys, so the surviving entries keep their original position.
-        $communicables = collect($communicables)->values()->filter(function ($c, $position) use ($communicableInterface) {
+        $communicables = $communicables->filter(function ($c, $position) use ($communicableInterface) {
             if (!($c instanceof $communicableInterface)) {
                 Log::warning('Communicable does not implement the required interface: ' . $communicableInterface);
                 $this->report->skipped($position, 'does-not-implement-' . class_basename($communicableInterface));
@@ -110,7 +119,21 @@ abstract class AbstractCommunicationHandler
      */
     protected function suppressionReasonFor($communicable): ?string
     {
-        return null;
+        return $this->suppression()->reasonFor($this->suppressionContext(), $communicable);
+    }
+
+    /** One pipeline per handler, so what its rules loaded lives for one send only. */
+    protected function suppression(): SuppressionPipeline
+    {
+        return $this->suppression ??= app(SuppressionPipeline::class);
+    }
+
+    protected function suppressionContext(): SuppressionContext
+    {
+        return $this->suppressionContext ??= new SuppressionContext(
+            $this->communicableInterface(),
+            $this->communication->group?->trigger,
+        );
     }
 
     /**
